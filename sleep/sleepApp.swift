@@ -9,9 +9,16 @@ import SwiftUI
 
 @main
 struct sleepApp: App {
+    @StateObject private var store = SleepStore()
+    @StateObject private var soundscapeEngine = SoundscapeEngine()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            NavigationStack {
+                ContentView()
+            }
+            .environmentObject(store)
+            .environmentObject(soundscapeEngine)
         }
     }
 }
