@@ -131,6 +131,9 @@ struct SoundscapeView: View {
         .onAppear {
             engine.configureTracks(store.soundscapeTracks)
         }
+        .onChange(of: store.soundscapeTracks) { newTracks in
+            engine.configureTracks(newTracks)
+        }
     }
 
     private func startPlayback() {

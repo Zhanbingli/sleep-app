@@ -21,6 +21,7 @@ final class SleepStore: ObservableObject {
     private let entriesKey = "sleep.entries"
     private let routineKey = "sleep.routine"
     private let soundscapeKey = "sleep.soundscape"
+    private let persistenceQueue = DispatchQueue(label: "sleep.store.persistence", qos: .utility)
 
     init() {
         entries = Self.load([SleepEntry].self, forKey: entriesKey) ?? SleepStore.sampleEntries
@@ -30,6 +31,16 @@ final class SleepStore: ObservableObject {
 
     func addEntry(_ entry: SleepEntry) {
         entries.insert(entry, at: 0)
+    }
+
+    func updateEntry(_ entry: SleepEntry) {
+        guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { return }
+        entries[index] = entry
+    }
+
+    func deleteEntry(id: UUID) {
+        guard let index = entries.firstIndex(where: { $0.id == id }) else { return }
+        entries.remove(at: index)
     }
 
     func toggleRoutineStep(id: UUID) {
@@ -55,16 +66,20 @@ final class SleepStore: ObservableObject {
         soundscapeTracks[index].isEnabled.toggle()
     }
 
+    var sortedEntries: [SleepEntry] {
+        entries.sorted(by: { $0.date > $1.date })
+    }
+
     var summary: SleepSummary {
-        let latest = entries.sorted(by: { $0.date > $1.date }).first
-        let lastSeven = Array(entries.prefix(7))
-        let latencyAvg = lastSeven.isEmpty ? 0 : Double(lastSeven.map { $0.latencyMinutes }.reduce(0, +)) / Double(lastSeven.count)
-        let wakeAvg = lastSeven.isEmpty ? 0 : Double(lastSeven.map { $0.wakeCount }.reduce(0, +)) / Double(lastSeven.count)
+        let sorted = sortedEntries
+        let recent = Array(sorted.prefix(7))
+        let latencyAvg = recent.isEmpty ? 0 : Double(recent.map { $0.latencyMinutes }.reduce(0, +)) / Double(recent.count)
+        let wakeAvg = recent.isEmpty ? 0 : Double(recent.map { $0.wakeCount }.reduce(0, +)) / Double(recent.count)
         return SleepSummary(
             averageLatency: latencyAvg,
             averageWakeCount: wakeAvg,
-            recentMood: entries.first?.mood,
-            lastEntry: latest
+            recentMood: sorted.first?.mood,
+            lastEntry: sorted.first
         )
     }
 }
@@ -72,7 +87,11 @@ final class SleepStore: ObservableObject {
 // MARK: - Persistence helpers
 private extension SleepStore {
     func persist<T: Encodable>(_ items: T, forKey key: String) {
-        if let data = try? JSONEncoder().encode(items) {
+        persistenceQueue.async {
+            guard let data = try? JSONEncoder().encode(items) else {
+                print("Warning: failed to encode data for key \(key)")
+                return
+            }
             UserDefaults.standard.set(data, forKey: key)
         }
     }

@@ -11,11 +11,22 @@ struct ReflectionView: View {
     @EnvironmentObject var store: SleepStore
     @Environment(\.dismiss) private var dismiss
 
-    @State private var date: Date = Date()
-    @State private var mood: Mood = .okay
-    @State private var latency: Double = 20
-    @State private var wakeCount: Int = 1
-    @State private var notes: String = ""
+    private let existingEntry: SleepEntry?
+
+    @State private var date: Date
+    @State private var mood: Mood
+    @State private var latency: Double
+    @State private var wakeCount: Int
+    @State private var notes: String
+
+    init(existingEntry: SleepEntry? = nil) {
+        self.existingEntry = existingEntry
+        _date = State(initialValue: existingEntry?.date ?? Date())
+        _mood = State(initialValue: existingEntry?.mood ?? .okay)
+        _latency = State(initialValue: Double(existingEntry?.latencyMinutes ?? 20))
+        _wakeCount = State(initialValue: existingEntry?.wakeCount ?? 1)
+        _notes = State(initialValue: existingEntry?.notes ?? "")
+    }
 
     var body: some View {
         Form {
@@ -55,19 +66,28 @@ struct ReflectionView: View {
                 .buttonStyle(.borderedProminent)
             }
         }
-        .navigationTitle("复盘与记录")
+        .navigationTitle(isEditing ? "编辑记录" : "复盘与记录")
     }
 
     private func saveEntry() {
         let entry = SleepEntry(
+            id: existingEntry?.id ?? UUID(),
             date: date,
             mood: mood,
             latencyMinutes: Int(latency),
             wakeCount: wakeCount,
             notes: notes.trimmingCharacters(in: .whitespacesAndNewlines)
         )
-        store.addEntry(entry)
+        if isEditing {
+            store.updateEntry(entry)
+        } else {
+            store.addEntry(entry)
+        }
         dismiss()
+    }
+
+    private var isEditing: Bool {
+        existingEntry != nil
     }
 }
 

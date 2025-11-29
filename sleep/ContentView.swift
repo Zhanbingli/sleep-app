@@ -15,6 +15,7 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 20) {
                 header
                 summaryCard
+                historyShortcut
                 quickActions
                 routinePreview
                 soundscapePreview
@@ -120,6 +121,30 @@ struct ContentView: View {
                 }
             }
         }
+    }
+
+    private var historyShortcut: some View {
+        NavigationLink {
+            SleepHistoryView()
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("查看记录与趋势")
+                        .font(.headline)
+                    Text("编辑或删除过往记录，保持数据准确")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+            .background(Color(.secondarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 
     private var routinePreview: some View {

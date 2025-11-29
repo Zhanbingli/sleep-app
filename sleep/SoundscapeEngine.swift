@@ -18,6 +18,11 @@ final class SoundscapeEngine: ObservableObject {
         var filterValue: Float = 0
     }
 
+    private struct EngineSnapshot {
+        var trackStates: [UUID: TrackState]
+        var masterVolume: Float
+    }
+
     @Published private(set) var isPlaying: Bool = false
     @Published private(set) var isFadingOut: Bool = false
 
@@ -26,19 +31,23 @@ final class SoundscapeEngine: ObservableObject {
     private var trackStates: [UUID: TrackState] = [:]
     private var masterVolume: Float = 1.0
     private var fadeTimer: Timer?
-    private let stateQueue = DispatchQueue(label: "soundscape.state.queue", qos: .userInitiated)
+    private let stateQueue = DispatchQueue(label: "soundscape.state.queue", qos: .userInitiated, attributes: .concurrent)
+    private var interruptionObserver: NSObjectProtocol?
+    private var routeChangeObserver: NSObjectProtocol?
+    private var shouldResumeAfterInterruption = false
 
     init() {
         configureAudioSession()
+        observeAudioSession()
     }
 
     func configureTracks(_ tracks: [SoundscapeTrack]) {
-        stateQueue.sync {
+        stateQueue.sync(flags: .barrier) {
             var newStates: [UUID: TrackState] = [:]
             for track in tracks {
                 newStates[track.id] = TrackState(kind: track.kind, volume: Float(track.volume), enabled: track.isEnabled, filterValue: 0)
             }
-            trackStates = newStates
+            self.trackStates = newStates
         }
         if isPlaying { // apply new mix immediately
             rebuildSource()
@@ -46,16 +55,16 @@ final class SoundscapeEngine: ObservableObject {
     }
 
     func setVolume(for trackID: UUID, volume: Double) {
-        stateQueue.sync {
-            guard trackStates[trackID] != nil else { return }
-            trackStates[trackID]?.volume = Float(volume)
+        stateQueue.async(flags: .barrier) {
+            guard self.trackStates[trackID] != nil else { return }
+            self.trackStates[trackID]?.volume = Float(volume)
         }
     }
 
     func setEnabled(for trackID: UUID, enabled: Bool) {
-        stateQueue.sync {
-            guard trackStates[trackID] != nil else { return }
-            trackStates[trackID]?.enabled = enabled
+        stateQueue.async(flags: .barrier) {
+            guard self.trackStates[trackID] != nil else { return }
+            self.trackStates[trackID]?.enabled = enabled
         }
     }
 
@@ -66,7 +75,7 @@ final class SoundscapeEngine: ObservableObject {
             try engine.start()
             isPlaying = true
             isFadingOut = false
-            masterVolume = 1.0
+            setMasterVolume(1.0)
         } catch {
             print("Failed to start engine: \(error)")
         }
@@ -91,7 +100,7 @@ final class SoundscapeEngine: ObservableObject {
             guard let self else { return }
             currentStep += 1
             let progress = Float(currentStep) / Float(steps)
-            masterVolume = max(0, 1.0 - progress)
+            setMasterVolume(max(0, 1.0 - progress))
             if currentStep >= steps {
                 timer.invalidate()
                 fadeTimer = nil
@@ -100,12 +109,75 @@ final class SoundscapeEngine: ObservableObject {
         })
     }
 
+    private func setMasterVolume(_ volume: Float) {
+        stateQueue.async(flags: .barrier) {
+            self.masterVolume = volume
+        }
+    }
+
+    private func snapshotState() -> EngineSnapshot {
+        stateQueue.sync {
+            EngineSnapshot(trackStates: self.trackStates, masterVolume: self.masterVolume)
+        }
+    }
+
     private func configureAudioSession() {
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
             print("Audio session error: \(error)")
+        }
+    }
+
+    private func observeAudioSession() {
+        interruptionObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: nil,
+            queue: .main,
+            using: { [weak self] in self?.handleInterruption($0) }
+        )
+        routeChangeObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: nil,
+            queue: .main,
+            using: { [weak self] in self?.handleRouteChange($0) }
+        )
+    }
+
+    private func handleInterruption(_ notification: Notification) {
+        guard
+            let info = notification.userInfo,
+            let typeValue = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+            let type = AVAudioSession.InterruptionType(rawValue: typeValue)
+        else { return }
+
+        switch type {
+        case .began:
+            shouldResumeAfterInterruption = isPlaying
+            stop()
+        case .ended:
+            let optionsValue = info[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+            if shouldResumeAfterInterruption && options.contains(.shouldResume) {
+                start()
+            }
+            shouldResumeAfterInterruption = false
+        @unknown default:
+            shouldResumeAfterInterruption = false
+        }
+    }
+
+    private func handleRouteChange(_ notification: Notification) {
+        guard
+            let info = notification.userInfo,
+            let reasonValue = info[AVAudioSessionRouteChangeReasonKey] as? UInt,
+            let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue)
+        else { return }
+
+        if reason == .oldDeviceUnavailable || reason == .categoryChange {
+            shouldResumeAfterInterruption = isPlaying
+            stop()
         }
     }
 
@@ -121,11 +193,9 @@ final class SoundscapeEngine: ObservableObject {
             guard let strongSelf = self else { return noErr }
             let ablPointer = UnsafeMutableAudioBufferListPointer(audioBufferList)
 
-            // Grab a snapshot of states to avoid mutating shared data without synchronization.
-            var localStates: [UUID: TrackState] = [:]
-            strongSelf.stateQueue.sync {
-                localStates = strongSelf.trackStates
-            }
+            let snapshot = strongSelf.snapshotState()
+            var localStates = snapshot.trackStates
+            let masterVolume = snapshot.masterVolume
 
             for frame in 0..<Int(frameCount) {
                 var mixedSample: Float = 0
@@ -135,7 +205,7 @@ final class SoundscapeEngine: ObservableObject {
                     mixedSample += sample * state.volume
                     localStates[id] = state // persist filter value
                 }
-                mixedSample = tanh(mixedSample) * strongSelf.masterVolume
+                mixedSample = tanh(mixedSample) * masterVolume
                 for buffer in ablPointer {
                     let ptr = buffer.mData!.assumingMemoryBound(to: Float.self)
                     ptr[frame] = mixedSample
@@ -143,7 +213,7 @@ final class SoundscapeEngine: ObservableObject {
             }
 
             // Write back updated filter values once per render pass.
-            strongSelf.stateQueue.sync {
+            strongSelf.stateQueue.async(flags: .barrier) {
                 strongSelf.trackStates = localStates
             }
             return noErr
@@ -170,6 +240,15 @@ final class SoundscapeEngine: ObservableObject {
             state.filterValue = 0.995 * state.filterValue + 0.005 * white
             let crackle = Bool(probability: 0.02) ? Float.random(in: 0.3...0.8) * white : 0
             return state.filterValue + crackle
+        }
+    }
+
+    deinit {
+        if let token = interruptionObserver {
+            NotificationCenter.default.removeObserver(token)
+        }
+        if let token = routeChangeObserver {
+            NotificationCenter.default.removeObserver(token)
         }
     }
 }
