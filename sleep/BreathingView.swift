@@ -9,37 +9,16 @@ import SwiftUI
 import UIKit
 
 struct BreathingView: View {
-    private let patterns: [BreathingPattern] = [
-        BreathingPattern(
-            name: "4-7-8",
-            description: "经典入睡放松，呼气更长帮助镇静",
-            phases: [
-                .init(title: "吸气", duration: 4),
-                .init(title: "屏息", duration: 7),
-                .init(title: "呼气", duration: 8)
-            ]
-        ),
-        BreathingPattern(
-            name: "盒式呼吸",
-            description: "平衡情绪，强调均匀节奏",
-            phases: [
-                .init(title: "吸气", duration: 4),
-                .init(title: "屏息", duration: 4),
-                .init(title: "呼气", duration: 4),
-                .init(title: "屏息", duration: 4)
-            ]
-        ),
-        BreathingPattern(
-            name: "共振呼吸",
-            description: "5-5 节奏，提升心率变异性",
-            phases: [
-                .init(title: "吸气", duration: 5),
-                .init(title: "呼气", duration: 5)
-            ]
-        )
-    ]
+    private let pattern = BreathingPattern(
+        name: "4-7-8",
+        description: "经典入睡放松，呼气更长帮助镇静",
+        phases: [
+            .init(title: "吸气", duration: 4),
+            .init(title: "屏息", duration: 7),
+            .init(title: "呼气", duration: 8)
+        ]
+    )
 
-    @State private var selectedPatternIndex: Int = 0
     @State private var phaseIndex: Int = 0
     @State private var remaining: Int = 4
     @State private var isRunning = false
@@ -48,74 +27,38 @@ struct BreathingView: View {
     private let ticker = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        let pattern = patterns[selectedPatternIndex]
+        ZStack {
+            LinearGradient(
+                colors: [Color.teal.opacity(0.15), Color.blue.opacity(0.12)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
 
-        ScrollView {
-            VStack(spacing: 24) {
-                header(pattern: pattern)
-                
-                Picker("模式", selection: $selectedPatternIndex) {
-                    ForEach(patterns.indices, id: \.self) { index in
-                        VStack(alignment: .leading) {
-                            Text(patterns[index].name)
-                                .font(.headline)
-                            Text(patterns[index].description)
-                                .font(.caption)
-                        }
-                        .tag(index)
+            ScrollView {
+                VStack(spacing: 18) {
+                    header()
+
+                    breathingCircle()
+
+                    infoPanel()
+
+                    controlButtons()
+
+                    Toggle(isOn: $hapticsEnabled) {
+                        Label("节拍提示（触觉）", systemImage: "waveform.circle")
                     }
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: selectedPatternIndex) { _ in
-                    reset(pattern: patterns[selectedPatternIndex])
-                }
+                    .toggleStyle(SwitchToggleStyle(tint: .teal))
+                    .padding(.horizontal)
 
-                breathingCircle(pattern: pattern)
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("当前步骤：\(currentPhase(for: pattern).title)")
-                        .font(.headline)
-                    Text("剩余 \(remaining) 秒")
-                        .font(.title2).bold()
-                        .foregroundColor(.primary)
-                    Text(pattern.description)
-                        .foregroundColor(.secondary)
-                        .font(.body)
+                    tipsCard()
                 }
-
-                HStack(spacing: 16) {
-                    Button(action: toggle) {
-                        Label(isRunning ? "暂停" : "开始", systemImage: isRunning ? "pause.circle.fill" : "play.circle.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-
-                    Button(action: { reset(pattern: pattern) }) {
-                        Label("重置", systemImage: "arrow.counterclockwise")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                }
-
-                Toggle(isOn: $hapticsEnabled) {
-                    Label("节拍提示（触觉）", systemImage: "waveform.circle")
-                }
-                .toggleStyle(SwitchToggleStyle(tint: .teal))
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("小贴士")
-                        .font(.headline)
-                    Text("呼气略长于吸气有助于让交感神经降下来。建议连续练习 3-5 分钟，并搭配音景渐弱。")
-                        .foregroundColor(.secondary)
-                        .font(.subheadline)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 20)
             }
-            .padding()
         }
         .navigationTitle("呼吸引导")
         .onAppear {
-            reset(pattern: pattern)
+            reset()
         }
         .onDisappear {
             stop()
@@ -126,30 +69,76 @@ struct BreathingView: View {
         }
     }
     
-    private func header(pattern: BreathingPattern) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("放松呼吸")
+    private func header() -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("4-7-8 放松呼吸")
                 .font(.largeTitle).bold()
-            Text("跟随节奏，呼气比吸气略长，帮助平稳入睡")
+            Text("呼气更长，降低紧张感，助眠入睡")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             HStack(spacing: 10) {
-                Label(pattern.name, systemImage: "lungs.fill")
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.teal.opacity(0.15))
-                    .clipShape(Capsule())
-                Label(isRunning ? "进行中" : "待开始", systemImage: isRunning ? "play.fill" : "pause")
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background((isRunning ? Color.green : Color.secondary).opacity(0.15))
-                    .clipShape(Capsule())
+                StatusPill(text: pattern.name, color: .teal)
+                StatusPill(text: isRunning ? "进行中" : "待开始", color: isRunning ? .green : .secondary)
             }
         }
+        .padding(.horizontal)
     }
 
-    private func breathingCircle(pattern: BreathingPattern) -> some View {
-        let phase = currentPhase(for: pattern)
+    private func infoPanel() -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Label("当前步骤", systemImage: "lungs.fill")
+                    .font(.headline)
+                Spacer()
+                StatusPill(text: currentPhase().title, color: .teal)
+            }
+            Text("剩余 \(remaining) 秒")
+                .font(.title2).bold()
+            Text(pattern.description)
+                .foregroundColor(.secondary)
+                .font(.body)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.horizontal)
+    }
+
+    private func controlButtons() -> some View {
+        HStack(spacing: 16) {
+            Button(action: toggle) {
+                Label(isRunning ? "暂停" : "开始", systemImage: isRunning ? "pause.circle.fill" : "play.circle.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+
+            Button(action: { reset() }) {
+                Label("重置", systemImage: "arrow.counterclockwise")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(.horizontal)
+    }
+
+    private func tipsCard() -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("小贴士")
+                .font(.headline)
+            Text("呼气略长于吸气有助于让交感神经降下来。建议连续练习 3-5 分钟，并搭配音景渐弱。")
+                .foregroundColor(.secondary)
+                .font(.subheadline)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.horizontal)
+    }
+
+    private func breathingCircle() -> some View {
+        let phase = currentPhase()
         return ZStack {
             Circle()
                 .stroke(Color.teal.opacity(0.25), lineWidth: 18)
@@ -188,7 +177,7 @@ struct BreathingView: View {
         }
     }
 
-    private func currentPhase(for pattern: BreathingPattern) -> BreathingPattern.Phase {
+    private func currentPhase() -> BreathingPattern.Phase {
         let phases = pattern.phases
         if phaseIndex >= phases.count { return phases.first! }
         return phases[phaseIndex]
@@ -204,9 +193,8 @@ struct BreathingView: View {
     }
 
     private func start() {
-        // ensure from the first phase when starting
         phaseIndex = 0
-        remaining = patterns[selectedPatternIndex].phases.first?.duration ?? 4
+        remaining = pattern.phases.first?.duration ?? 4
         isRunning = true
         // Start immediately to give feedback.
         animateForCurrentPhase()
@@ -221,7 +209,7 @@ struct BreathingView: View {
         if remaining > 1 {
             remaining -= 1
         } else {
-            let phases = patterns[selectedPatternIndex].phases
+            let phases = pattern.phases
             phaseIndex = (phaseIndex + 1) % phases.count
             remaining = phases[phaseIndex].duration
             sendHaptic(.phaseChange)
@@ -229,7 +217,7 @@ struct BreathingView: View {
         animateForCurrentPhase()
     }
 
-    private func reset(pattern: BreathingPattern) {
+    private func reset() {
         stop()
         phaseIndex = 0
         remaining = pattern.phases.first?.duration ?? 4
@@ -237,7 +225,7 @@ struct BreathingView: View {
     }
 
     private func animateForCurrentPhase() {
-        let scale = targetScale(for: currentPhase(for: patterns[selectedPatternIndex]))
+        let scale = targetScale(for: currentPhase())
         withAnimation(.easeInOut(duration: 1.0)) {
             animationScale = scale
         }
@@ -256,6 +244,21 @@ struct BreathingView: View {
         case .phaseChange:
             UINotificationFeedbackGenerator().notificationOccurred(.success)
         }
+    }
+}
+
+private struct StatusPill: View {
+    let text: String
+    let color: Color
+
+    var body: some View {
+        Text(text)
+            .font(.caption)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(color.opacity(0.15))
+            .foregroundColor(color)
+            .clipShape(Capsule())
     }
 }
 

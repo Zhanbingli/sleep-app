@@ -47,7 +47,7 @@ struct SleepHistoryView: View {
                     ForEach(store.sortedEntries) { entry in
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
-                                Text(dateFormatter.string(from: entry.date))
+                                Text(Self.dateFormatter.string(from: entry.date))
                                     .font(.headline)
                                 Spacer()
                                 Text(entry.mood.rawValue)
@@ -108,12 +108,12 @@ struct SleepHistoryView: View {
         }
     }
 
-    private var dateFormatter: DateFormatter {
+    private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.locale = Locale(identifier: "zh_CN")
         return formatter
-    }
+    }()
 }
 
 private struct Stat: View {

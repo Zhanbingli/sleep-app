@@ -105,7 +105,7 @@ struct ContentView: View {
                 NavigationLink {
                     SoundscapeView()
                 } label: {
-                    QuickAction(title: "音景渐弱", icon: "music.note.waveform", color: .indigo)
+                    QuickAction(title: "音景渐弱", icon: "waveform", color: .indigo)
                 }
             }
             HStack(spacing: 12) {

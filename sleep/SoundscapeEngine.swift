@@ -42,6 +42,7 @@ final class SoundscapeEngine: ObservableObject {
     }
 
     func configureTracks(_ tracks: [SoundscapeTrack]) {
+        let wasPlaying = isPlaying
         stateQueue.sync(flags: .barrier) {
             var newStates: [UUID: TrackState] = [:]
             for track in tracks {
@@ -49,8 +50,9 @@ final class SoundscapeEngine: ObservableObject {
             }
             self.trackStates = newStates
         }
-        if isPlaying { // apply new mix immediately
+        if wasPlaying { // apply new mix immediately and keep playback alive
             rebuildSource()
+            startEngineAfterRebuild()
         }
     }
 
@@ -71,14 +73,7 @@ final class SoundscapeEngine: ObservableObject {
     func start() {
         guard !isPlaying else { return }
         rebuildSource()
-        do {
-            try engine.start()
-            isPlaying = true
-            isFadingOut = false
-            setMasterVolume(1.0)
-        } catch {
-            print("Failed to start engine: \(error)")
-        }
+        startEngineAfterRebuild()
     }
 
     func stop() {
@@ -222,6 +217,17 @@ final class SoundscapeEngine: ObservableObject {
         engine.attach(node)
         engine.connect(node, to: engine.mainMixerNode, format: format)
         sourceNode = node
+    }
+
+    private func startEngineAfterRebuild() {
+        do {
+            try engine.start()
+            isPlaying = true
+            isFadingOut = false
+            setMasterVolume(masterVolume)
+        } catch {
+            print("Failed to restart engine: \(error)")
+        }
     }
 
     private func sample(for kind: SoundKind, state: inout TrackState) -> Float {

@@ -7,6 +7,7 @@
 
 import Foundation
 
+@MainActor
 final class SleepStore: ObservableObject {
     @Published var entries: [SleepEntry] = [] {
         didSet { persist(entries, forKey: entriesKey) }
@@ -61,9 +62,15 @@ final class SleepStore: ObservableObject {
         soundscapeTracks[index].volume = volume
     }
 
-    func toggleSoundscape(id: UUID) {
+    func setSoundscapeEnabled(id: UUID, enabled: Bool) {
         guard let index = soundscapeTracks.firstIndex(where: { $0.id == id }) else { return }
-        soundscapeTracks[index].isEnabled.toggle()
+        guard soundscapeTracks[index].isEnabled != enabled else { return }
+        soundscapeTracks[index].isEnabled = enabled
+    }
+
+    func toggleSoundscape(id: UUID) {
+        guard let track = soundscapeTracks.first(where: { $0.id == id }) else { return }
+        setSoundscapeEnabled(id: id, enabled: !track.isEnabled)
     }
 
     var sortedEntries: [SleepEntry] {
