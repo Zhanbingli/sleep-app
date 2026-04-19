@@ -18,12 +18,7 @@ private struct SoundscapeScreen: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color.indigo.opacity(0.18), Color.blue.opacity(0.12)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            SleepBackdrop()
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -69,7 +64,7 @@ private struct SoundscapeScreen: View {
             }
         }
         .navigationTitle("音景")
-        .toolbarBackground(.hidden, for: .navigationBar)
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -83,16 +78,16 @@ private struct SoundscapeHero: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("舒缓音景")
-                        .font(.largeTitle.bold())
+                    Text("让声音替你慢慢退场")
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
                     Text(statusText)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Color.white.opacity(0.76))
                 }
                 Spacer()
                 Button(action: toggleAction) {
                     Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
                         .font(.system(size: 44, weight: .bold))
-                        .foregroundColor(isPlaying ? .red : .white)
+                        .foregroundColor(.white)
                         .shadow(color: Color.black.opacity(0.2), radius: 8, x: 0, y: 4)
                 }
             }
@@ -109,7 +104,7 @@ private struct SoundscapeHero: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [Color.indigo.opacity(0.6), Color.blue.opacity(0.5)],
+                        colors: [SleepTheme.indigo, SleepTheme.dusk, SleepTheme.teal],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
@@ -125,11 +120,7 @@ private struct SoundscapeCard<Content: View>: View {
 
     var body: some View {
         content
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: Color.black.opacity(0.06), radius: 12, x: 0, y: 6)
+            .sleepCardStyle()
     }
 }
 
@@ -143,7 +134,7 @@ private struct SoundscapeControls: View {
                     Text("播放控制")
                         .font(.headline)
                     Text("随时开始/停止，或设置渐弱时长")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(SleepTheme.mutedInk)
                         .font(.caption)
                 }
                 Spacer()
@@ -161,9 +152,10 @@ private struct SoundscapeControls: View {
             VStack(alignment: .leading, spacing: 10) {
                 LabeledContent {
                     Text("\(Int(viewModel.fadeMinutes)) 分钟")
-                        .foregroundColor(.secondary)
+                        .foregroundColor(SleepTheme.mutedInk)
                 } label: {
                     Label("渐弱定时", systemImage: "timer")
+                        .foregroundColor(SleepTheme.ink)
                 }
                 Slider(
                     value: Binding(
@@ -190,7 +182,7 @@ private struct SoundscapeControls: View {
                 if viewModel.isFadingOut {
                     Text("渐弱中，完成后会自动停止。")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(SleepTheme.mutedInk)
                 }
             }
         }
@@ -213,7 +205,7 @@ private struct SoundscapeTrackRow: View {
                         .font(.headline)
                     Text(track.description)
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(SleepTheme.mutedInk)
                 }
                 Spacer()
                 Toggle("", isOn: Binding(
@@ -232,7 +224,7 @@ private struct SoundscapeTrackRow: View {
                 )
             } label: {
                 Label("音量 \(Int(track.volume * 100))%", systemImage: "speaker.wave.2")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(SleepTheme.mutedInk)
                     .font(.caption)
             }
         }
@@ -246,7 +238,7 @@ private struct StatusPill: View {
 
     var body: some View {
         Text(text)
-            .font(.caption)
+            .font(.caption.weight(.semibold))
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(color.opacity(0.15))

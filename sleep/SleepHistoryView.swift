@@ -35,8 +35,8 @@ struct SleepHistoryView: View {
                 Section {
                     HStack {
                         Stat(label: "平均入睡", value: "\(Int(store.summary.averageLatency)) 分")
-                        Stat(label: "平均醒来", value: String(format: "%.1f 次", store.summary.averageWakeCount))
-                        Stat(label: "最近心情", value: store.summary.recentMood?.rawValue ?? "—")
+                        Stat(label: "平均睡眠", value: String(format: "%.1f 小时", store.summary.averageSleepHours))
+                        Stat(label: "刷手机", value: "\(Int(store.summary.phoneUseRate * 100))%")
                     }
                     .padding(.vertical, 6)
                 } header: {
@@ -57,9 +57,15 @@ struct SleepHistoryView: View {
                             HStack(spacing: 12) {
                                 Label("\(entry.latencyMinutes) 分钟入睡", systemImage: "clock")
                                 Label("\(entry.wakeCount) 次醒来", systemImage: "zzz")
+                                Label(String(format: "%.1f 小时", entry.sleepDurationHours), systemImage: "bed.double")
                             }
                             .font(.caption)
                             .foregroundColor(.secondary)
+                            if !entry.habitTags.isEmpty {
+                                Text(entry.habitTags.joined(separator: " · "))
+                                    .font(.caption)
+                                    .foregroundColor(SleepTheme.accent)
+                            }
                             if !entry.notes.isEmpty {
                                 Text(entry.notes)
                                     .font(.caption)
@@ -85,6 +91,8 @@ struct SleepHistoryView: View {
             }
         }
         .navigationTitle("睡眠历史")
+        .scrollContentBackground(.hidden)
+        .background(SleepBackdrop())
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {

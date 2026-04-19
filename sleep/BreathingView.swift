@@ -9,56 +9,45 @@ import SwiftUI
 import UIKit
 
 struct BreathingView: View {
-    private let pattern = BreathingPattern(
-        name: "4-7-8",
-        description: "经典入睡放松，呼气更长帮助镇静",
-        phases: [
-            .init(title: "吸气", duration: 4),
-            .init(title: "屏息", duration: 7),
-            .init(title: "呼气", duration: 8)
-        ]
-    )
+    private let initialPreset: BreathingPatternPreset
 
-    @State private var phaseIndex: Int = 0
-    @State private var remaining: Int = 4
+    @State private var selectedPreset: BreathingPatternPreset
+    @State private var phaseIndex = 0
+    @State private var remaining: Int
+    @State private var completedCycles = 0
     @State private var isRunning = false
     @State private var animationScale: CGFloat = 1.0
     @State private var hapticsEnabled = true
+
     private let ticker = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
 
+    init(initialPreset: BreathingPatternPreset = .fourSevenEight) {
+        self.initialPreset = initialPreset
+        _selectedPreset = State(initialValue: initialPreset)
+        _remaining = State(initialValue: initialPreset.pattern.phases.first?.duration ?? 4)
+    }
+
+    private var pattern: BreathingPattern {
+        selectedPreset.pattern
+    }
+
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [Color.teal.opacity(0.15), Color.blue.opacity(0.12)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-
-            ScrollView {
-                VStack(spacing: 18) {
-                    header()
-
-                    breathingCircle()
-
-                    infoPanel()
-
-                    controlButtons()
-
-                    Toggle(isOn: $hapticsEnabled) {
-                        Label("节拍提示（触觉）", systemImage: "waveform.circle")
-                    }
-                    .toggleStyle(SwitchToggleStyle(tint: .teal))
-                    .padding(.horizontal)
-
-                    tipsCard()
-                }
-                .padding(.vertical, 20)
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 18) {
+                header
+                presetPicker
+                breathingStage
+                controlPanel
+                tipsCard
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 18)
         }
+        .background(breathingBackdrop)
         .navigationTitle("呼吸引导")
+        .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            reset()
+            reset(for: initialPreset)
         }
         .onDisappear {
             stop()
@@ -67,138 +56,204 @@ struct BreathingView: View {
             guard isRunning else { return }
             advancePhase()
         }
-    }
-    
-    private func header() -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("4-7-8 放松呼吸")
-                .font(.largeTitle).bold()
-            Text("呼气更长，降低紧张感，助眠入睡")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            HStack(spacing: 10) {
-                StatusPill(text: pattern.name, color: .teal)
-                StatusPill(text: isRunning ? "进行中" : "待开始", color: isRunning ? .green : .secondary)
-            }
-        }
-        .padding(.horizontal)
+        .onChange(of: selectedPreset, perform: { newValue in
+            reset(for: newValue)
+        })
     }
 
-    private func infoPanel() -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Label("当前步骤", systemImage: "lungs.fill")
-                    .font(.headline)
-                Spacer()
-                StatusPill(text: currentPhase().title, color: .teal)
-            }
-            Text("剩余 \(remaining) 秒")
-                .font(.title2).bold()
-            Text(pattern.description)
-                .foregroundColor(.secondary)
-                .font(.body)
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .padding(.horizontal)
-    }
+    private var breathingBackdrop: some View {
+        ZStack {
+            LinearGradient(
+                colors: [SleepTheme.indigo, Color(red: 0.18, green: 0.22, blue: 0.30), SleepTheme.teal],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
 
-    private func controlButtons() -> some View {
-        HStack(spacing: 16) {
-            Button(action: toggle) {
-                Label(isRunning ? "暂停" : "开始", systemImage: isRunning ? "pause.circle.fill" : "play.circle.fill")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-
-            Button(action: { reset() }) {
-                Label("重置", systemImage: "arrow.counterclockwise")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-        }
-        .padding(.horizontal)
-    }
-
-    private func tipsCard() -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("小贴士")
-                .font(.headline)
-            Text("呼气略长于吸气有助于让交感神经降下来。建议连续练习 3-5 分钟，并搭配音景渐弱。")
-                .foregroundColor(.secondary)
-                .font(.subheadline)
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .padding(.horizontal)
-    }
-
-    private func breathingCircle() -> some View {
-        let phase = currentPhase()
-        return ZStack {
             Circle()
-                .stroke(Color.teal.opacity(0.25), lineWidth: 18)
+                .fill(Color.white.opacity(0.08))
                 .frame(width: 260, height: 260)
+                .blur(radius: 10)
+                .offset(x: 120, y: -260)
+
             Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color.teal.opacity(0.9), Color.cyan.opacity(0.7)],
-                        center: .center,
-                        startRadius: 10,
-                        endRadius: 160
-                    )
-                )
-                .frame(width: 230, height: 230)
-                .scaleEffect(animationScale)
-                .animation(.easeInOut(duration: 1.0), value: animationScale)
-            VStack(spacing: 6) {
-                Text(phase.title)
-                    .font(.title2).bold()
-                    .foregroundColor(.white)
-                Text("请跟随节奏")
-                    .font(.footnote)
-                    .foregroundColor(.white.opacity(0.8))
+                .fill(SleepTheme.accent.opacity(0.14))
+                .frame(width: 220, height: 220)
+                .blur(radius: 18)
+                .offset(x: -150, y: 220)
+        }
+        .ignoresSafeArea()
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("先让身体降速")
+                .font(.system(size: 32, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+            Text(selectedPreset.shortDescription)
+                .font(.subheadline)
+                .foregroundColor(Color.white.opacity(0.74))
+
+            HStack(spacing: 10) {
+                BreathingStatusPill(text: selectedPreset.displayName, color: Color.white.opacity(0.14), foreground: .white)
+                BreathingStatusPill(text: isRunning ? "进行中" : "待开始", color: isRunning ? SleepTheme.teal.opacity(0.28) : Color.white.opacity(0.12), foreground: .white)
+                if completedCycles > 0 {
+                    BreathingStatusPill(text: "已完成 \(completedCycles) 轮", color: SleepTheme.accent.opacity(0.24), foreground: .white)
+                }
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func targetScale(for phase: BreathingPattern.Phase) -> CGFloat {
-        switch phase.title {
-        case "吸气": return 1.14
-        case "屏息": return 1.02
-        case "呼气": return 0.9
-        default: return 1.0
+    private var presetPicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                ForEach(BreathingPatternPreset.allCases) { preset in
+                    Button {
+                        selectedPreset = preset
+                    } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(preset.displayName)
+                                .font(.headline)
+                            Text(preset.shortDescription)
+                                .font(.caption)
+                                .foregroundColor(selectedPreset == preset ? Color.white.opacity(0.76) : Color.white.opacity(0.62))
+                                .multilineTextAlignment(.leading)
+                        }
+                        .padding(16)
+                        .frame(width: 190, alignment: .leading)
+                        .background(selectedPreset == preset ? Color.white.opacity(0.16) : Color.white.opacity(0.08))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .stroke(selectedPreset == preset ? Color.white.opacity(0.36) : Color.white.opacity(0.08), lineWidth: 1)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
 
-    private func currentPhase() -> BreathingPattern.Phase {
+    private var breathingStage: some View {
+        VStack(spacing: 18) {
+            ZStack {
+                Circle()
+                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    .frame(width: 282, height: 282)
+                Circle()
+                    .stroke(Color.white.opacity(0.08), lineWidth: 22)
+                    .frame(width: 244, height: 244)
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.white.opacity(0.92), SleepTheme.cream, SleepTheme.accent.opacity(0.58)],
+                            center: .center,
+                            startRadius: 10,
+                            endRadius: 160
+                        )
+                    )
+                    .frame(width: 214, height: 214)
+                    .scaleEffect(animationScale)
+                    .animation(.easeInOut(duration: 1.0), value: animationScale)
+
+                VStack(spacing: 8) {
+                    Text(currentPhase.title)
+                        .font(.title.weight(.bold))
+                        .foregroundColor(SleepTheme.ink)
+                    Text("\(remaining)")
+                        .font(.system(size: 44, weight: .bold, design: .rounded))
+                        .foregroundColor(SleepTheme.indigo)
+                }
+            }
+            .frame(maxWidth: .infinity)
+
+            Text(pattern.description)
+                .font(.subheadline)
+                .foregroundColor(Color.white.opacity(0.72))
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity)
+        .background(Color.white.opacity(0.06))
+        .overlay(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+    }
+
+    private var controlPanel: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("当前步骤")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(Color.white.opacity(0.64))
+                Text(selectedPreset.bedtimeBenefit)
+                    .font(.subheadline)
+                    .foregroundColor(Color.white.opacity(0.82))
+            }
+
+            HStack(spacing: 12) {
+                Button(action: toggle) {
+                    Label(isRunning ? "暂停" : "开始", systemImage: isRunning ? "pause.fill" : "play.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(SleepTheme.accent)
+
+                Button(action: { reset(for: selectedPreset) }) {
+                    Label("重置", systemImage: "arrow.counterclockwise")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(.white)
+            }
+
+            Toggle(isOn: $hapticsEnabled) {
+                Label("节拍提示（触觉）", systemImage: "waveform.circle")
+                    .foregroundColor(.white)
+            }
+            .toggleStyle(SwitchToggleStyle(tint: SleepTheme.accent))
+        }
+        .padding(20)
+        .background(Color.white.opacity(0.08))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+
+    private var tipsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("今晚建议")
+                .font(.headline)
+                .foregroundColor(.white)
+            Text("练习 3 到 5 分钟即可。呼吸结束后立刻切到音景渐弱，比停下来重新思考更重要。")
+                .font(.subheadline)
+                .foregroundColor(Color.white.opacity(0.72))
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.08))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+
+    private var currentPhase: BreathingPattern.Phase {
         let phases = pattern.phases
-        if phaseIndex >= phases.count { return phases.first! }
+        guard phaseIndex < phases.count else { return phases.first! }
         return phases[phaseIndex]
     }
 
     private func toggle() {
         isRunning.toggle()
         if isRunning {
-            start()
-        } else {
-            stop()
+            animateForCurrentPhase()
+            sendHaptic(.start)
         }
-    }
-
-    private func start() {
-        phaseIndex = 0
-        remaining = pattern.phases.first?.duration ?? 4
-        isRunning = true
-        // Start immediately to give feedback.
-        animateForCurrentPhase()
-        sendHaptic(.start)
     }
 
     private func stop() {
@@ -210,24 +265,45 @@ struct BreathingView: View {
             remaining -= 1
         } else {
             let phases = pattern.phases
-            phaseIndex = (phaseIndex + 1) % phases.count
+            let nextIndex = (phaseIndex + 1) % phases.count
+            if nextIndex == 0 {
+                completedCycles += 1
+            }
+            phaseIndex = nextIndex
             remaining = phases[phaseIndex].duration
             sendHaptic(.phaseChange)
         }
         animateForCurrentPhase()
     }
 
-    private func reset() {
+    private func reset(for preset: BreathingPatternPreset) {
         stop()
+        selectedPreset = preset
         phaseIndex = 0
-        remaining = pattern.phases.first?.duration ?? 4
+        completedCycles = 0
+        remaining = preset.pattern.phases.first?.duration ?? 4
         animateForCurrentPhase()
     }
 
     private func animateForCurrentPhase() {
-        let scale = targetScale(for: currentPhase())
+        let scale = targetScale(for: currentPhase)
         withAnimation(.easeInOut(duration: 1.0)) {
             animationScale = scale
+        }
+    }
+
+    private func targetScale(for phase: BreathingPattern.Phase) -> CGFloat {
+        switch phase.title {
+        case "吸气":
+            return 1.14
+        case "屏息":
+            return 1.02
+        case "呼气":
+            return 0.88
+        case "停顿":
+            return 0.94
+        default:
+            return 1.0
         }
     }
 
@@ -247,17 +323,18 @@ struct BreathingView: View {
     }
 }
 
-private struct StatusPill: View {
+private struct BreathingStatusPill: View {
     let text: String
     let color: Color
+    let foreground: Color
 
     var body: some View {
         Text(text)
-            .font(.caption)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(color.opacity(0.15))
-            .foregroundColor(color)
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(color)
+            .foregroundColor(foreground)
             .clipShape(Capsule())
     }
 }

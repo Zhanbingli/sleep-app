@@ -72,6 +72,7 @@ final class SoundscapeEngine: ObservableObject {
 
     func start() {
         guard !isPlaying else { return }
+        setMasterVolume(1.0, synchronously: true)
         rebuildSource()
         startEngineAfterRebuild()
     }
@@ -80,6 +81,7 @@ final class SoundscapeEngine: ObservableObject {
         fadeTimer?.invalidate()
         fadeTimer = nil
         engine.stop()
+        setMasterVolume(1.0, synchronously: true)
         isPlaying = false
         isFadingOut = false
     }
@@ -104,9 +106,15 @@ final class SoundscapeEngine: ObservableObject {
         })
     }
 
-    private func setMasterVolume(_ volume: Float) {
-        stateQueue.async(flags: .barrier) {
-            self.masterVolume = volume
+    private func setMasterVolume(_ volume: Float, synchronously: Bool = false) {
+        if synchronously {
+            stateQueue.sync(flags: .barrier) {
+                self.masterVolume = volume
+            }
+        } else {
+            stateQueue.async(flags: .barrier) {
+                self.masterVolume = volume
+            }
         }
     }
 
