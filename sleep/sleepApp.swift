@@ -15,7 +15,9 @@ struct sleepApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
-                if store.hasCompletedOnboarding {
+                if let previewScreen = AppLaunchPreview.current {
+                    AppLaunchPreviewRootView(screen: previewScreen)
+                } else if store.hasCompletedOnboarding {
                     RootTabView()
                 } else {
                     NavigationStack {

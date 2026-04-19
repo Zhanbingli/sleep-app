@@ -157,6 +157,12 @@ struct ContentView: View {
     }
 }
 
+enum RootTab: Hashable {
+    case tonight
+    case morning
+    case more
+}
+
 private struct SequenceRow: View {
     let index: Int
     let title: String
@@ -183,21 +189,30 @@ private struct SequenceRow: View {
 }
 
 struct RootTabView: View {
+    @State private var selectedTab: RootTab
+
+    init(initialTab: RootTab = .tonight) {
+        _selectedTab = State(initialValue: initialTab)
+    }
+
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             NavigationStack {
                 ContentView()
             }
+            .tag(RootTab.tonight)
             .tabItem { Label("今晚", systemImage: "moon.zzz.fill") }
 
             NavigationStack {
                 ReflectionView()
             }
+            .tag(RootTab.morning)
             .tabItem { Label("次晨", systemImage: "sun.max.fill") }
 
             NavigationStack {
                 LibraryView()
             }
+            .tag(RootTab.more)
             .tabItem { Label("更多", systemImage: "line.3.horizontal") }
         }
         .tint(SleepTheme.accent)

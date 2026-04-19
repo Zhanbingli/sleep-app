@@ -38,6 +38,15 @@ final class SleepStore: ObservableObject {
         soundscapeTracks = Self.load([SoundscapeTrack].self, forKey: soundscapeKey) ?? SleepStore.sampleSoundscape
         soundscapeFadeMinutes = Self.load(Double.self, forKey: soundscapeFadeKey) ?? 30
         profile = Self.load(SleepProfile.self, forKey: profileKey)
+
+        if let previewScreen = AppLaunchPreview.current {
+            entries = Self.sampleEntries
+            routineSteps = Self.sampleRoutine
+            soundscapeTracks = Self.sampleSoundscape
+            soundscapeFadeMinutes = 30
+            profile = previewScreen == .onboarding ? nil : Self.sampleProfile
+        }
+
         migrateLocalizedContentIfNeeded()
     }
 
@@ -493,4 +502,10 @@ extension SleepStore {
         SoundscapeTrack(title: L10n.tr("雨声"), description: L10n.tr("轻柔雨幕，帮助放松"), kind: .rain, volume: 0.65, isEnabled: false),
         SoundscapeTrack(title: L10n.tr("壁炉"), description: L10n.tr("噼啪火光，营造安全感"), kind: .fireplace, volume: 0.55, isEnabled: false)
     ]
+
+    static let sampleProfile = SleepProfile(
+        primaryChallenge: .stressLoad,
+        preferredSound: .rain,
+        preferredWindDownMinutes: 10
+    )
 }
