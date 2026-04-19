@@ -14,16 +14,19 @@ struct sleepApp: App {
 
     var body: some Scene {
         WindowGroup {
-            NavigationStack {
+            Group {
                 if store.hasCompletedOnboarding {
-                    ContentView()
+                    RootTabView()
                 } else {
-                    OnboardingView()
+                    NavigationStack {
+                        OnboardingView()
+                    }
                 }
             }
             .tint(SleepTheme.accent)
             .environmentObject(store)
             .environmentObject(soundscapeEngine)
+            .preferredColorScheme(.dark)
         }
     }
 }

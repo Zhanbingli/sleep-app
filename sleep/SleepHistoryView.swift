@@ -104,13 +104,13 @@ struct SleepHistoryView: View {
         }
         .sheet(item: $entryToEdit) { entry in
             NavigationStack {
-                ReflectionView(existingEntry: entry)
+                ReflectionDetailView(existingEntry: entry)
                     .environmentObject(store)
             }
         }
         .sheet(isPresented: $showNewEntry) {
             NavigationStack {
-                ReflectionView()
+                ReflectionDetailView()
                     .environmentObject(store)
             }
         }

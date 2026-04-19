@@ -7,7 +7,230 @@
 
 import SwiftUI
 
+// MARK: - Morning quick log (3 taps max)
+
 struct ReflectionView: View {
+    @EnvironmentObject private var store: SleepStore
+    @State private var didLog = false
+    @State private var loggedFeedback: SettleFeedback?
+
+    var body: some View {
+        ZStack {
+            SleepBackdrop()
+
+            if didLog, let feedback = loggedFeedback {
+                ConfirmationView(feedback: feedback) {
+                    didLog = false
+                    loggedFeedback = nil
+                }
+            } else {
+                MorningPrompt(onLog: log)
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("次晨")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundColor(SleepTheme.mutedInk)
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                NavigationLink {
+                    ReflectionDetailView()
+                } label: {
+                    Text("详细")
+                        .font(.caption)
+                        .foregroundColor(SleepTheme.mutedInk)
+                }
+            }
+        }
+    }
+
+    private func log(feedback: SettleFeedback, issue: MorningIssue?) {
+        var entry = SleepEntry(
+            latencyMinutes: 20,
+            wakeCount: 1,
+            settleFeedback: feedback
+        )
+        if let issue {
+            switch issue {
+            case .racingThoughts:
+                entry.stressLevel = .high
+                entry.notes = issue.title
+            case .wokeUp:
+                entry.wakeCount = 2
+                entry.notes = issue.title
+            case .usedPhone:
+                entry.usedPhoneBeforeBed = true
+                entry.notes = issue.title
+            case .notTired:
+                entry.mood = .tired
+                entry.notes = issue.title
+            }
+        }
+        store.addEntry(entry)
+        loggedFeedback = feedback
+        withAnimation(.easeInOut(duration: 0.4)) {
+            didLog = true
+        }
+    }
+}
+
+private enum MorningIssue: String, CaseIterable, Identifiable {
+    case racingThoughts, wokeUp, usedPhone, notTired
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .racingThoughts: return "脑子停不下来"
+        case .wokeUp: return "醒了"
+        case .usedPhone: return "又用手机"
+        case .notTired: return "不困"
+        }
+    }
+}
+
+private struct MorningPrompt: View {
+    let onLog: (SettleFeedback, MorningIssue?) -> Void
+
+    @State private var selectedIssue: MorningIssue?
+
+    var body: some View {
+        VStack(spacing: 30) {
+            Spacer()
+
+            VStack(spacing: 8) {
+                Text("昨晚")
+                    .font(.subheadline.weight(.medium))
+                    .tracking(2)
+                    .foregroundColor(SleepTheme.mutedInk)
+                Text("有更快安静下来吗？")
+                    .font(.system(size: 26, weight: .semibold, design: .rounded))
+                    .foregroundColor(SleepTheme.ink)
+                    .multilineTextAlignment(.center)
+            }
+
+            VStack(spacing: 12) {
+                FeedbackChip(title: "有") { onLog(.yes, selectedIssue) }
+                FeedbackChip(title: "有一点") { onLog(.somewhat, selectedIssue) }
+                FeedbackChip(title: "没有") { onLog(.no, selectedIssue) }
+            }
+
+            VStack(spacing: 10) {
+                Text("可选 · 主要原因")
+                    .font(.caption)
+                    .foregroundColor(SleepTheme.mutedInk)
+                FlowingChips(items: MorningIssue.allCases) { issue in
+                    IssueChip(issue: issue, isSelected: selectedIssue == issue) {
+                        if selectedIssue == issue {
+                            selectedIssue = nil
+                        } else {
+                            selectedIssue = issue
+                        }
+                    }
+                }
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 28)
+    }
+}
+
+private struct FeedbackChip: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.headline.weight(.semibold))
+                .foregroundColor(SleepTheme.ink)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 22)
+                .background(SleepTheme.card)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .stroke(SleepTheme.line, lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct IssueChip: View {
+    let issue: MorningIssue
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(issue.title)
+                .font(.caption)
+                .foregroundColor(isSelected ? SleepTheme.ink : SleepTheme.mutedInk)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(isSelected ? SleepTheme.accent.opacity(0.25) : SleepTheme.card)
+                .overlay(
+                    Capsule()
+                        .stroke(isSelected ? SleepTheme.accent.opacity(0.55) : SleepTheme.line, lineWidth: 1)
+                )
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct FlowingChips<Item: Identifiable, Content: View>: View {
+    let items: [Item]
+    @ViewBuilder let content: (Item) -> Content
+
+    var body: some View {
+        // Two rows of two for compact display on small phones.
+        let columns = [GridItem(.flexible()), GridItem(.flexible())]
+        LazyVGrid(columns: columns, spacing: 10) {
+            ForEach(items) { item in
+                content(item)
+            }
+        }
+    }
+}
+
+private struct ConfirmationView: View {
+    let feedback: SettleFeedback
+    let onChange: () -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            Image(systemName: "checkmark")
+                .font(.system(size: 28, weight: .light))
+                .foregroundColor(SleepTheme.accent)
+                .frame(width: 56, height: 56)
+                .background(SleepTheme.card)
+                .clipShape(Circle())
+            Text("已记录")
+                .font(.title3.weight(.semibold))
+                .foregroundColor(SleepTheme.ink)
+            Text("昨晚 · \(feedback.title)")
+                .font(.subheadline)
+                .foregroundColor(SleepTheme.mutedInk)
+            Spacer()
+            Button(action: onChange) {
+                Text("再选一次")
+                    .font(.caption)
+                    .foregroundColor(SleepTheme.mutedInk)
+            }
+            .padding(.bottom, 40)
+        }
+    }
+}
+
+// MARK: - Detailed editor (used for editing past entries from history)
+
+struct ReflectionDetailView: View {
     @EnvironmentObject private var store: SleepStore
     @Environment(\.dismiss) private var dismiss
 
@@ -108,7 +331,7 @@ struct ReflectionView: View {
                 .buttonStyle(.borderedProminent)
             }
         }
-        .navigationTitle(isEditing ? "编辑复盘" : "次晨复盘")
+        .navigationTitle(isEditing ? "编辑复盘" : "详细复盘")
         .scrollContentBackground(.hidden)
         .background(SleepBackdrop())
     }
@@ -163,9 +386,18 @@ struct ReflectionView: View {
     }
 }
 
-#Preview {
+#Preview("Quick log") {
     NavigationStack {
         ReflectionView()
             .environmentObject(SleepStore())
     }
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Detail") {
+    NavigationStack {
+        ReflectionDetailView()
+            .environmentObject(SleepStore())
+    }
+    .preferredColorScheme(.dark)
 }

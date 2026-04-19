@@ -1,45 +1,53 @@
 import SwiftUI
 
 enum SleepTheme {
-    static let ink = Color(red: 0.17, green: 0.22, blue: 0.32)
-    static let mutedInk = Color(red: 0.39, green: 0.44, blue: 0.53)
-    static let cream = Color(red: 0.97, green: 0.94, blue: 0.89)
-    static let haze = Color(red: 0.87, green: 0.91, blue: 0.93)
-    static let dusk = Color(red: 0.50, green: 0.61, blue: 0.69)
-    static let accent = Color(red: 0.77, green: 0.49, blue: 0.32)
-    static let teal = Color(red: 0.35, green: 0.52, blue: 0.53)
-    static let indigo = Color(red: 0.28, green: 0.35, blue: 0.52)
-    static let line = Color.white.opacity(0.55)
-    static let card = Color.white.opacity(0.7)
-    static let softCard = Color.white.opacity(0.52)
+    // Dark base — quiet, low-cognitive-load
+    static let base = Color(red: 0.05, green: 0.07, blue: 0.12)
+    static let surface = Color(red: 0.08, green: 0.10, blue: 0.16)
+    static let surfaceHigh = Color(red: 0.11, green: 0.14, blue: 0.21)
+
+    // Text
+    static let ink = Color(red: 0.92, green: 0.94, blue: 0.97)
+    static let mutedInk = Color(red: 0.56, green: 0.60, blue: 0.69)
+
+    // Single muted accent + supporting tints (desaturated)
+    static let accent = Color(red: 0.82, green: 0.65, blue: 0.45)
+    static let teal = Color(red: 0.30, green: 0.50, blue: 0.55)
+    static let indigo = Color(red: 0.22, green: 0.28, blue: 0.46)
+    static let dusk = Color(red: 0.32, green: 0.39, blue: 0.52)
+
+    // Legacy tokens retained so existing screens keep compiling.
+    // `cream` stays a warm light beige because BreathingView's circle uses it
+    // as a radial-gradient stop — the warm light center is intentional.
+    static let cream = Color(red: 0.88, green: 0.84, blue: 0.78)
+    static let haze = Color(red: 0.10, green: 0.13, blue: 0.20)
+
+    // Subtle elevations + dividers on dark base
+    static let line = Color.white.opacity(0.08)
+    static let card = Color.white.opacity(0.05)
+    static let softCard = Color.white.opacity(0.035)
 }
 
 struct SleepBackdrop: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [SleepTheme.cream, SleepTheme.haze, Color.white],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+                colors: [SleepTheme.base, SleepTheme.surface, SleepTheme.base],
+                startPoint: .top,
+                endPoint: .bottom
             )
 
             Circle()
-                .fill(SleepTheme.accent.opacity(0.17))
-                .frame(width: 220, height: 220)
-                .blur(radius: 18)
-                .offset(x: 120, y: -260)
+                .fill(SleepTheme.indigo.opacity(0.22))
+                .frame(width: 360, height: 360)
+                .blur(radius: 90)
+                .offset(x: -140, y: -280)
 
             Circle()
-                .fill(SleepTheme.teal.opacity(0.16))
-                .frame(width: 260, height: 260)
-                .blur(radius: 26)
-                .offset(x: -150, y: 300)
-
-            Circle()
-                .fill(SleepTheme.indigo.opacity(0.08))
-                .frame(width: 300, height: 300)
-                .blur(radius: 34)
-                .offset(x: 120, y: 360)
+                .fill(SleepTheme.teal.opacity(0.14))
+                .frame(width: 320, height: 320)
+                .blur(radius: 100)
+                .offset(x: 160, y: 320)
         }
         .ignoresSafeArea()
     }
@@ -55,7 +63,6 @@ struct SleepCardModifier: ViewModifier {
                     .stroke(SleepTheme.line, lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .shadow(color: SleepTheme.indigo.opacity(0.08), radius: 18, x: 0, y: 12)
     }
 }
 

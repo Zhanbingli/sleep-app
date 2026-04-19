@@ -1,221 +1,73 @@
 import SwiftUI
+import UIKit
 
 struct TonightFlowView: View {
     @EnvironmentObject private var store: SleepStore
     @EnvironmentObject private var engine: SoundscapeEngine
+    @Environment(\.dismiss) private var dismiss
 
     let tonightState: TonightState
 
-    @State private var showPhoneAwayOverlay = false
+    @State private var phase: Phase = .commitment
+
+    private enum Phase {
+        case commitment, breathing, audio, phoneDown
+    }
 
     private var plan: TonightPlan {
         store.tonightPlan(for: tonightState)
     }
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 18) {
-                heroCard
-                routineCard
-                breathingCard
-                soundscapeCard
-                putPhoneDownCard
-                morningCard
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 18)
-        }
-        .background(SleepBackdrop())
-        .navigationTitle("今晚助眠")
-        .navigationBarTitleDisplayMode(.inline)
-        .fullScreenCover(isPresented: $showPhoneAwayOverlay) {
-            PhoneAwayView()
-        }
-    }
+        ZStack {
+            SleepBackdrop()
 
-    private var heroCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("TONIGHT STATE")
-                .font(.caption.weight(.bold))
-                .tracking(1.8)
-                .foregroundColor(Color.white.opacity(0.75))
-            Text(plan.title)
-                .font(.system(size: 32, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-            Text("当前状态：\(plan.stateTitle) · \(plan.detail)")
-                .font(.subheadline)
-                .foregroundColor(Color.white.opacity(0.8))
-
-            HStack(spacing: 10) {
-                TonightBadge(text: plan.recommendedBreathing.displayName, color: Color.white.opacity(0.16), foreground: .white)
-                TonightBadge(text: plan.recommendedSoundKind.displayName, color: Color.white.opacity(0.16), foreground: .white)
-                TonightBadge(text: plan.focusLabel, color: Color.white.opacity(0.16), foreground: .white)
+            switch phase {
+            case .commitment:
+                CommitmentScreen(plan: plan, onStart: advanceToBreathing)
+            case .breathing:
+                TunnelBreathingScreen(
+                    preset: plan.recommendedBreathing,
+                    onComplete: advanceToAudio
+                )
+                .transition(.opacity)
+            case .audio:
+                AudioDescentScreen(plan: plan, onPhoneDown: advanceToPhoneDown)
+                    .transition(.opacity)
+            case .phoneDown:
+                PhoneDownScreen(onEnd: { dismiss() })
+                    .transition(.opacity)
             }
         }
-        .padding(24)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [SleepTheme.indigo, SleepTheme.dusk, SleepTheme.teal],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(Color.white.opacity(0.14), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: SleepTheme.indigo.opacity(0.16), radius: 24, x: 0, y: 14)
-    }
-
-    private var routineCard: some View {
-        TonightSectionCard(
-            eyebrow: "Step 1",
-            title: "先把环境和动作收拢",
-            detail: store.routineProgressText
-        ) {
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(store.routineSteps.prefix(4)) { step in
-                    Button {
-                        store.toggleRoutineStep(id: step.id)
-                    } label: {
-                        HStack(spacing: 14) {
-                            Image(systemName: step.completed ? "checkmark.circle.fill" : step.icon)
-                                .font(.title3)
-                                .foregroundColor(step.completed ? .green : SleepTheme.mutedInk)
-                                .frame(width: 26)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(step.title)
-                                    .font(.headline)
-                                    .foregroundColor(SleepTheme.ink)
-                                Text("\(step.durationMinutes) 分钟")
-                                    .font(.caption)
-                                    .foregroundColor(SleepTheme.mutedInk)
-                            }
-                            Spacer()
-                        }
-                        .padding(.vertical, 4)
+        .navigationBarBackButtonHidden(true)
+        .toolbar(phase == .commitment ? .visible : .hidden, for: .navigationBar)
+        .toolbar {
+            if phase == .commitment {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(SleepTheme.mutedInk)
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }
     }
 
-    private var breathingCard: some View {
-        TonightSectionCard(
-            eyebrow: "Step 2",
-            title: "先让呼吸带走速度",
-            detail: plan.recommendedBreathing.shortDescription
-        ) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text(plan.recommendedBreathing.bedtimeBenefit)
-                    .font(.subheadline)
-                    .foregroundColor(SleepTheme.mutedInk)
-
-                NavigationLink {
-                    BreathingView(initialPreset: plan.recommendedBreathing)
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("开始 \(plan.recommendedBreathing.displayName)")
-                                .font(.headline)
-                            Text("做 3 到 5 分钟就够，目标是明显降速。")
-                                .font(.caption)
-                                .foregroundColor(Color.white.opacity(0.74))
-                        }
-                        Spacer()
-                        Image(systemName: "play.fill")
-                            .font(.headline)
-                    }
-                    .padding(18)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        LinearGradient(
-                            colors: [SleepTheme.teal, SleepTheme.indigo],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .foregroundColor(.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                }
-                .buttonStyle(.plain)
-            }
-        }
+    private func advanceToBreathing() {
+        withAnimation(.easeInOut(duration: 0.6)) { phase = .breathing }
     }
 
-    private var soundscapeCard: some View {
-        TonightSectionCard(
-            eyebrow: "Step 3",
-            title: "让声音慢慢退出",
-            detail: "推荐 \(plan.fadeMinutes) 分钟渐弱，帮你从刺激切进更稳定的状态。"
-        ) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text(activeTrackSummary)
-                    .font(.subheadline)
-                    .foregroundColor(SleepTheme.mutedInk)
-
-                Button {
-                    startRecommendedSoundscape()
-                } label: {
-                    Label(engine.isPlaying ? "重启推荐音景" : "开始推荐音景", systemImage: "speaker.wave.2.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(SleepTheme.indigo)
-            }
-        }
+    private func advanceToAudio() {
+        startSoundscape()
+        withAnimation(.easeInOut(duration: 0.8)) { phase = .audio }
     }
 
-    private var putPhoneDownCard: some View {
-        TonightSectionCard(
-            eyebrow: "Step 4",
-            title: "现在放下手机",
-            detail: "这是整个流程最关键的一步。不要继续浏览，不要再做选择。"
-        ) {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("音景和渐弱已经开始后，你真正要做的只有一件事：把手机翻过去，让身体接管后面的部分。")
-                    .font(.subheadline)
-                    .foregroundColor(SleepTheme.mutedInk)
-
-                Button {
-                    if !engine.isPlaying {
-                        startRecommendedSoundscape()
-                    }
-                    showPhoneAwayOverlay = true
-                } label: {
-                    Text("我现在放下手机")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(SleepTheme.accent)
-            }
-        }
+    private func advanceToPhoneDown() {
+        withAnimation(.easeInOut(duration: 0.8)) { phase = .phoneDown }
     }
 
-    private var morningCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("明早只问一个关键问题")
-                .font(.headline)
-                .foregroundColor(SleepTheme.ink)
-            Text("这套流程昨晚有没有帮你更快安静下来。这个反馈比任何装饰性的睡眠分数都更重要。")
-                .font(.subheadline)
-                .foregroundColor(SleepTheme.mutedInk)
-        }
-        .sleepCardStyle()
-    }
-
-    private var activeTrackSummary: String {
-        let enabledTracks = store.soundscapeTracks.filter(\.isEnabled)
-        guard !enabledTracks.isEmpty else {
-            return "当前还没选音景，默认会启用\(plan.recommendedSoundKind.displayName)。"
-        }
-        return "当前已启用：\(enabledTracks.map(\.title).joined(separator: "、"))"
-    }
-
-    private func startRecommendedSoundscape() {
+    private func startSoundscape() {
         if engine.isPlaying || engine.isFadingOut {
             engine.stop()
         }
@@ -226,70 +78,289 @@ struct TonightFlowView: View {
     }
 }
 
-private struct TonightSectionCard<Content: View>: View {
-    let eyebrow: String
-    let title: String
-    let detail: String
-    @ViewBuilder var content: Content
+// MARK: - Commitment
+
+private struct CommitmentScreen: View {
+    let plan: TonightPlan
+    let onStart: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            SleepSectionHeader(eyebrow: eyebrow, title: title, detail: detail)
-            content
+        VStack(spacing: 28) {
+            Spacer()
+
+            VStack(spacing: 12) {
+                Text("今晚 8 分钟")
+                    .font(.system(size: 36, weight: .semibold, design: .rounded))
+                    .foregroundColor(SleepTheme.ink)
+                Text(plan.title)
+                    .font(.subheadline)
+                    .foregroundColor(SleepTheme.mutedInk)
+                    .multilineTextAlignment(.center)
+            }
+
+            VStack(spacing: 10) {
+                CommitmentStep(text: "呼吸 · \(plan.recommendedBreathing.displayName)")
+                CommitmentStep(text: "音景 · \(plan.recommendedSoundKind.displayName)")
+                CommitmentStep(text: "把手机放下")
+            }
+
+            Spacer()
+
+            Button(action: onStart) {
+                Text("开始")
+                    .font(.headline.weight(.semibold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 18)
+                    .background(SleepTheme.indigo)
+                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            }
+            .buttonStyle(.plain)
         }
-        .sleepCardStyle()
+        .padding(.horizontal, 28)
+        .padding(.bottom, 40)
     }
 }
 
-private struct TonightBadge: View {
+private struct CommitmentStep: View {
     let text: String
-    let color: Color
-    let foreground: Color
 
     var body: some View {
         Text(text)
-            .font(.caption.weight(.semibold))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(color)
-            .foregroundColor(foreground)
-            .clipShape(Capsule())
+            .font(.subheadline)
+            .foregroundColor(SleepTheme.ink.opacity(0.85))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(SleepTheme.card)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(SleepTheme.line, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
-private struct PhoneAwayView: View {
-    @Environment(\.dismiss) private var dismiss
+// MARK: - Breathing tunnel
+
+private struct TunnelBreathingScreen: View {
+    let preset: BreathingPatternPreset
+    let onComplete: () -> Void
+
+    private let totalDuration: Int = 240 // 4 minutes
+
+    @State private var phaseIndex = 0
+    @State private var remaining: Int
+    @State private var elapsed: Int = 0
+    @State private var isPaused = false
+    @State private var animationScale: CGFloat = 0.92
+
+    private let ticker = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
+
+    init(preset: BreathingPatternPreset, onComplete: @escaping () -> Void) {
+        self.preset = preset
+        self.onComplete = onComplete
+        _remaining = State(initialValue: preset.pattern.phases.first?.duration ?? 4)
+    }
+
+    private var currentPhase: BreathingPattern.Phase {
+        let phases = preset.pattern.phases
+        return phases[phaseIndex % phases.count]
+    }
 
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [SleepTheme.indigo, Color.black, SleepTheme.teal.opacity(0.8)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+        VStack {
+            Text(currentPhase.title)
+                .font(.subheadline.weight(.medium))
+                .tracking(2)
+                .foregroundColor(SleepTheme.mutedInk)
+                .padding(.top, 24)
+
+            Spacer()
+
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.white.opacity(0.18), SleepTheme.indigo.opacity(0.45)],
+                            center: .center,
+                            startRadius: 4,
+                            endRadius: 180
+                        )
+                    )
+                    .frame(width: 280, height: 280)
+                    .scaleEffect(animationScale)
+                    .animation(.easeInOut(duration: 1.0), value: animationScale)
+
+                Text("\(remaining)")
+                    .font(.system(size: 56, weight: .light, design: .rounded))
+                    .foregroundColor(SleepTheme.ink)
+            }
+
+            Spacer()
 
             VStack(spacing: 18) {
-                Image(systemName: "moon.zzz.fill")
-                    .font(.system(size: 44))
-                    .foregroundColor(.white.opacity(0.92))
-                Text("现在把手机放下")
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                Text("别再看一眼。让音景继续，闭眼，把注意力交还给身体。")
-                    .font(.title3)
-                    .foregroundColor(.white.opacity(0.8))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 26)
+                ProgressView(value: Double(elapsed), total: Double(totalDuration))
+                    .progressViewStyle(.linear)
+                    .tint(SleepTheme.accent)
+                    .frame(maxWidth: 200)
 
-                Button("我知道了") {
-                    dismiss()
+                ZStack {
+                    HStack {
+                        Button(action: onComplete) {
+                            Text("跳过")
+                                .font(.caption)
+                                .foregroundColor(SleepTheme.mutedInk.opacity(0.6))
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 36)
+
+                    Button { isPaused.toggle() } label: {
+                        Image(systemName: isPaused ? "play.fill" : "pause.fill")
+                            .font(.title3)
+                            .foregroundColor(SleepTheme.ink)
+                            .frame(width: 56, height: 56)
+                            .background(SleepTheme.card)
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(SleepTheme.accent)
-                .padding(.top, 8)
             }
-            .padding(24)
+            .padding(.bottom, 40)
+        }
+        .onAppear { animateForCurrentPhase() }
+        .onReceive(ticker) { _ in
+            guard !isPaused else { return }
+            tick()
+        }
+    }
+
+    private func tick() {
+        elapsed += 1
+        if elapsed >= totalDuration {
+            onComplete()
+            return
+        }
+        if remaining > 1 {
+            remaining -= 1
+        } else {
+            phaseIndex = (phaseIndex + 1) % preset.pattern.phases.count
+            remaining = preset.pattern.phases[phaseIndex % preset.pattern.phases.count].duration
+        }
+        animateForCurrentPhase()
+    }
+
+    private func animateForCurrentPhase() {
+        let scale: CGFloat = {
+            switch currentPhase.title {
+            case "吸气": return 1.18
+            case "屏息": return 1.06
+            case "呼气": return 0.82
+            case "停顿": return 0.92
+            default: return 1.0
+            }
+        }()
+        withAnimation(.easeInOut(duration: 1.0)) {
+            animationScale = scale
+        }
+    }
+}
+
+// MARK: - Audio descent
+
+private struct AudioDescentScreen: View {
+    let plan: TonightPlan
+    let onPhoneDown: () -> Void
+
+    @State private var pulse: CGFloat = 1.0
+
+    var body: some View {
+        VStack {
+            Text("音景渐弱中")
+                .font(.subheadline.weight(.medium))
+                .tracking(2)
+                .foregroundColor(SleepTheme.mutedInk)
+                .padding(.top, 24)
+
+            Spacer()
+
+            ZStack {
+                Circle()
+                    .stroke(SleepTheme.indigo.opacity(0.20), lineWidth: 1)
+                    .frame(width: 260, height: 260)
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [SleepTheme.indigo.opacity(0.4), Color.clear],
+                            center: .center,
+                            startRadius: 4,
+                            endRadius: 180
+                        )
+                    )
+                    .frame(width: 220, height: 220)
+                    .scaleEffect(pulse)
+                    .animation(.easeInOut(duration: 4).repeatForever(autoreverses: true), value: pulse)
+            }
+            .onAppear { pulse = 1.08 }
+
+            Spacer()
+
+            VStack(spacing: 14) {
+                Text("\(plan.fadeMinutes) 分钟内自动停止")
+                    .font(.footnote)
+                    .foregroundColor(SleepTheme.mutedInk)
+
+                Button(action: onPhoneDown) {
+                    Text("现在放下手机")
+                        .font(.headline.weight(.semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 18)
+                        .background(SleepTheme.accent.opacity(0.85))
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 28)
+            }
+            .padding(.bottom, 40)
+        }
+    }
+}
+
+// MARK: - Phone down end-state
+
+private struct PhoneDownScreen: View {
+    let onEnd: () -> Void
+
+    var body: some View {
+        VStack(spacing: 22) {
+            Spacer()
+            Image(systemName: "moon.zzz.fill")
+                .font(.system(size: 48))
+                .foregroundColor(SleepTheme.mutedInk)
+            Text("把手机放下")
+                .font(.system(size: 32, weight: .semibold, design: .rounded))
+                .foregroundColor(SleepTheme.ink)
+            Text("音景会继续。闭眼。")
+                .font(.subheadline)
+                .foregroundColor(SleepTheme.mutedInk)
+            Spacer()
+            Button(action: onEnd) {
+                Text("结束")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(SleepTheme.mutedInk)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(SleepTheme.card)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .stroke(SleepTheme.line, lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 28)
+            .padding(.bottom, 40)
         }
     }
 }
@@ -300,4 +371,5 @@ private struct PhoneAwayView: View {
             .environmentObject(SleepStore())
             .environmentObject(SoundscapeEngine())
     }
+    .preferredColorScheme(.dark)
 }
