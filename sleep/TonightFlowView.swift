@@ -246,6 +246,7 @@ private struct TunnelBreathingScreen: View {
         } else {
             phaseIndex = (phaseIndex + 1) % preset.pattern.phases.count
             remaining = preset.pattern.phases[phaseIndex % preset.pattern.phases.count].duration
+            UISelectionFeedbackGenerator().selectionChanged()
         }
         animateForCurrentPhase()
     }
