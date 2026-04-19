@@ -103,12 +103,11 @@ struct BreathingView: View {
 
     private func animateForCurrentPhase() {
         let scale: CGFloat = {
-            switch currentPhase.title {
-            case "吸气": return 1.18
-            case "屏息": return 1.06
-            case "呼气": return 0.82
-            case "停顿": return 0.92
-            default: return 1.0
+            switch currentPhase.kind {
+            case .inhale: return 1.18
+            case .hold: return 1.06
+            case .exhale: return 0.82
+            case .pause: return 0.92
             }
         }()
         withAnimation(.easeInOut(duration: 1.0)) {

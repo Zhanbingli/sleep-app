@@ -40,6 +40,12 @@ struct TonightFlowView: View {
             }
         }
         .navigationBarBackButtonHidden(true)
+        .onChange(of: phase) { newPhase in
+            UIApplication.shared.isIdleTimerDisabled = (newPhase != .commitment)
+        }
+        .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
+        }
         .toolbar(phase == .commitment ? .visible : .hidden, for: .navigationBar)
         .toolbar {
             if phase == .commitment {
@@ -99,14 +105,17 @@ private struct CommitmentScreen: View {
             }
 
             VStack(spacing: 10) {
-                CommitmentStep(text: "呼吸 · \(plan.recommendedBreathing.displayName)")
-                CommitmentStep(text: "音景 · \(plan.recommendedSoundKind.displayName)")
+                CommitmentStep(text: L10n.format("呼吸 · %@", plan.recommendedBreathing.displayName))
+                CommitmentStep(text: L10n.format("音景 · %@", plan.recommendedSoundKind.displayName))
                 CommitmentStep(text: "把手机放下")
             }
 
             Spacer()
 
-            Button(action: onStart) {
+            Button {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                onStart()
+            } label: {
                 Text("开始")
                     .font(.headline.weight(.semibold))
                     .foregroundColor(.white)
@@ -126,7 +135,7 @@ private struct CommitmentStep: View {
     let text: String
 
     var body: some View {
-        Text(text)
+        Text(L10n.tr(text))
             .font(.subheadline)
             .foregroundColor(SleepTheme.ink.opacity(0.85))
             .frame(maxWidth: .infinity)
@@ -253,12 +262,11 @@ private struct TunnelBreathingScreen: View {
 
     private func animateForCurrentPhase() {
         let scale: CGFloat = {
-            switch currentPhase.title {
-            case "吸气": return 1.18
-            case "屏息": return 1.06
-            case "呼气": return 0.82
-            case "停顿": return 0.92
-            default: return 1.0
+            switch currentPhase.kind {
+            case .inhale: return 1.18
+            case .hold: return 1.06
+            case .exhale: return 0.82
+            case .pause: return 0.92
             }
         }()
         withAnimation(.easeInOut(duration: 1.0)) {
@@ -307,7 +315,7 @@ private struct AudioDescentScreen: View {
             Spacer()
 
             VStack(spacing: 14) {
-                Text("\(plan.fadeMinutes) 分钟内自动停止")
+                Text(L10n.format("%d 分钟内自动停止", plan.fadeMinutes))
                     .font(.footnote)
                     .foregroundColor(SleepTheme.mutedInk)
 

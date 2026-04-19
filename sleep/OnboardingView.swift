@@ -2,10 +2,20 @@ import SwiftUI
 
 struct OnboardingView: View {
     @EnvironmentObject private var store: SleepStore
+    @Environment(\.dismiss) private var dismiss
 
     @State private var selectedChallenge: SleepChallenge = .mindRacing
     @State private var selectedSound: SoundKind = .pinkNoise
     @State private var selectedWindDown = 10
+
+    private let isEditingProfile: Bool
+
+    init(initialProfile: SleepProfile? = nil) {
+        self.isEditingProfile = initialProfile != nil
+        _selectedChallenge = State(initialValue: initialProfile?.primaryChallenge ?? .mindRacing)
+        _selectedSound = State(initialValue: initialProfile?.preferredSound ?? .pinkNoise)
+        _selectedWindDown = State(initialValue: initialProfile?.preferredWindDownMinutes ?? 10)
+    }
 
     var body: some View {
         ZStack {
@@ -28,10 +38,10 @@ struct OnboardingView: View {
 
     private var hero: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("先告诉我你的睡前问题")
+            Text(isEditingProfile ? "更新你的睡前画像" : "先告诉我你的睡前问题")
                 .font(.system(size: 30, weight: .semibold, design: .rounded))
                 .foregroundColor(SleepTheme.ink)
-            Text("我会据此把今晚流程收窄到最有用的样子。")
+            Text(isEditingProfile ? "改完后，今晚流程和推荐音景会一起更新。" : "我会据此把今晚流程收窄到最有用的样子。")
                 .font(.subheadline)
                 .foregroundColor(SleepTheme.mutedInk)
         }
@@ -84,15 +94,19 @@ struct OnboardingView: View {
 
     private var finishButton: some View {
         Button {
-            store.completeOnboarding(
-                with: SleepProfile(
-                    primaryChallenge: selectedChallenge,
-                    preferredSound: selectedSound,
-                    preferredWindDownMinutes: selectedWindDown
-                )
+            let profile = SleepProfile(
+                primaryChallenge: selectedChallenge,
+                preferredSound: selectedSound,
+                preferredWindDownMinutes: selectedWindDown
             )
+            if isEditingProfile {
+                store.updateProfile(profile)
+                dismiss()
+            } else {
+                store.completeOnboarding(with: profile)
+            }
         } label: {
-            Text("生成今晚方案")
+            Text(isEditingProfile ? "保存偏好" : "生成今晚方案")
                 .font(.headline.weight(.semibold))
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
@@ -108,7 +122,7 @@ struct OnboardingView: View {
 private struct SectionLabel: View {
     let text: String
     var body: some View {
-        Text(text)
+        Text(L10n.tr(text))
             .font(.caption.weight(.semibold))
             .tracking(1.4)
             .foregroundColor(SleepTheme.mutedInk)
@@ -123,7 +137,7 @@ private struct SelectableRow: View {
     var body: some View {
         Button(action: action) {
             HStack {
-                Text(title)
+                Text(L10n.tr(title))
                     .font(.subheadline.weight(.medium))
                     .foregroundColor(isSelected ? SleepTheme.ink : SleepTheme.ink.opacity(0.78))
                 Spacer()
@@ -181,7 +195,7 @@ private struct DurationChip: View {
 
     var body: some View {
         Button(action: action) {
-            Text("\(minutes) 分钟")
+            Text(L10n.format("%d 分钟", minutes))
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(SleepTheme.ink)
                 .frame(maxWidth: .infinity)

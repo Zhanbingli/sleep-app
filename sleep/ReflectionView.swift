@@ -48,8 +48,8 @@ struct ReflectionView: View {
 
     private func log(feedback: SettleFeedback, issue: MorningIssue?) {
         var entry = SleepEntry(
-            latencyMinutes: 20,
-            wakeCount: 1,
+            kind: .quickCheck,
+            mood: .okay,
             settleFeedback: feedback
         )
         if let issue {
@@ -83,10 +83,10 @@ private enum MorningIssue: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .racingThoughts: return "脑子停不下来"
-        case .wokeUp: return "醒了"
-        case .usedPhone: return "又用手机"
-        case .notTired: return "不困"
+        case .racingThoughts: return L10n.tr("脑子停不下来")
+        case .wokeUp: return L10n.tr("醒了")
+        case .usedPhone: return L10n.tr("又用手机")
+        case .notTired: return L10n.tr("不困")
         }
     }
 }
@@ -144,7 +144,7 @@ private struct FeedbackChip: View {
 
     var body: some View {
         Button(action: action) {
-            Text(title)
+            Text(L10n.tr(title))
                 .font(.headline.weight(.semibold))
                 .foregroundColor(SleepTheme.ink)
                 .frame(maxWidth: .infinity)
@@ -214,9 +214,14 @@ private struct ConfirmationView: View {
             Text("已记录")
                 .font(.title3.weight(.semibold))
                 .foregroundColor(SleepTheme.ink)
-            Text("昨晚 · \(feedback.title)")
+            Text(L10n.format("昨晚 · %@", feedback.title))
                 .font(.subheadline)
                 .foregroundColor(SleepTheme.mutedInk)
+            Text("这次只记录了主观反馈，补一条详细复盘后趋势会更准。")
+                .font(.footnote)
+                .foregroundColor(SleepTheme.mutedInk)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
             Spacer()
             Button(action: onChange) {
                 Text("再选一次")
@@ -267,6 +272,12 @@ struct ReflectionDetailView: View {
 
     var body: some View {
         Form {
+            Section {
+                Text("详细复盘会进入趋势统计，并直接影响今晚推荐。")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+
             Section("昨夜节律") {
                 DatePicker("醒来日期", selection: $date, displayedComponents: .date)
                 DatePicker("上床时间", selection: $bedtime, displayedComponents: .hourAndMinute)
@@ -276,7 +287,7 @@ struct ReflectionDetailView: View {
             Section("睡眠结果") {
                 Picker("睡醒感受", selection: $mood) {
                     ForEach(Mood.allCases) { mood in
-                        Text(mood.rawValue).tag(mood)
+                        Text(mood.title).tag(mood)
                     }
                 }
 
@@ -285,15 +296,15 @@ struct ReflectionDetailView: View {
                     Spacer()
                     Slider(value: $latency, in: 5...90, step: 5)
                         .frame(width: 170)
-                    Text("\(Int(latency)) 分")
+                    Text(L10n.format("%d 分", Int(latency)))
                         .foregroundColor(.secondary)
                 }
 
-                Stepper("夜间醒来：\(wakeCount) 次", value: $wakeCount, in: 0...8)
+                Stepper(L10n.format("夜间醒来：%d 次", wakeCount), value: $wakeCount, in: 0...8)
 
                 Picker("睡前压力", selection: $stressLevel) {
                     ForEach(StressLevel.allCases) { level in
-                        Text("\(level.rawValue) · \(level.subtitle)").tag(level)
+                        Text(L10n.format("%@ · %@", level.title, level.subtitle)).tag(level)
                     }
                 }
             }
@@ -325,13 +336,14 @@ struct ReflectionDetailView: View {
                 Button {
                     saveEntry()
                 } label: {
-                    Label("保存复盘", systemImage: "checkmark.circle.fill")
-                        .frame(maxWidth: .infinity)
+                    Text("保存复盘")
+                        .font(.headline.weight(.semibold))
+                        .frame(maxWidth: .infinity, alignment: .center)
                 }
                 .buttonStyle(.borderedProminent)
             }
         }
-        .navigationTitle(isEditing ? "编辑复盘" : "详细复盘")
+        .navigationTitle(L10n.tr(isEditing ? "编辑复盘" : "详细复盘"))
         .scrollContentBackground(.hidden)
         .background(SleepBackdrop())
     }
@@ -346,6 +358,7 @@ struct ReflectionDetailView: View {
 
         let entry = SleepEntry(
             id: existingEntry?.id ?? UUID(),
+            kind: .detailed,
             date: wakeDate,
             mood: mood,
             latencyMinutes: Int(latency),

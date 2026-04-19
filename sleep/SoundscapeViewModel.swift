@@ -19,11 +19,11 @@ final class SoundscapeViewModel: ObservableObject {
     private let engine: SoundscapeEngine
     private var cancellables: Set<AnyCancellable> = []
 
-    init(store: SleepStore, engine: SoundscapeEngine, fadeMinutes: Double = 30) {
+    init(store: SleepStore, engine: SoundscapeEngine) {
         self.store = store
         self.engine = engine
         self.tracks = store.soundscapeTracks
-        self.fadeMinutes = fadeMinutes
+        self.fadeMinutes = store.soundscapeFadeMinutes
         bind()
         engine.configureTracks(store.soundscapeTracks)
     }
@@ -35,6 +35,11 @@ final class SoundscapeViewModel: ObservableObject {
                 self?.tracks = tracks
                 self?.engine.configureTracks(tracks)
             }
+            .store(in: &cancellables)
+
+        store.$soundscapeFadeMinutes
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in self?.fadeMinutes = $0 }
             .store(in: &cancellables)
 
         engine.$isPlaying
@@ -83,6 +88,11 @@ final class SoundscapeViewModel: ObservableObject {
         engine.fadeOut(duration: fadeMinutes * 60)
     }
 
+    func setFadeMinutes(_ minutes: Double) {
+        fadeMinutes = minutes
+        store.updateSoundscapeFadeMinutes(minutes)
+    }
+
     private func ensureDefaultTrackIfNeeded() {
         guard !tracks.contains(where: { $0.isEnabled }) else { return }
         guard let first = tracks.first else { return }
@@ -91,10 +101,10 @@ final class SoundscapeViewModel: ObservableObject {
 
     var statusText: String {
         if isFadingOut {
-            return "渐弱进行中..."
+            return L10n.tr("渐弱进行中...")
         }
-        if isPlaying { return "建议搭配 20-40 分钟渐弱，减少夜间惊醒。" }
+        if isPlaying { return L10n.tr("建议搭配 20-40 分钟渐弱，减少夜间惊醒。") }
         let hasEnabled = tracks.contains(where: { $0.isEnabled })
-        return hasEnabled ? "选择开启的音景后点击开始。" : "先开启至少一个音景，再开始播放。"
+        return hasEnabled ? L10n.tr("选择开启的音景后点击开始。") : L10n.tr("先开启至少一个音景，再开始播放。")
     }
 }

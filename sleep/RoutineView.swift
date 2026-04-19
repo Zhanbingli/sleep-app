@@ -21,7 +21,7 @@ struct RoutineView: View {
                             .foregroundColor(step.completed ? .green : .secondary)
                         VStack(alignment: .leading, spacing: 4) {
                             Text(step.title)
-                            Text("\(step.durationMinutes) 分钟")
+                            Text(L10n.format("%d 分钟", step.durationMinutes))
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -127,7 +127,7 @@ private struct RoutineStepEditor: View {
                     Spacer()
                     Slider(value: $duration, in: 5...30, step: 5)
                         .frame(width: 170)
-                    Text("\(Int(duration)) 分")
+                    Text(L10n.format("%d 分", Int(duration)))
                         .foregroundColor(.secondary)
                 }
             }
@@ -169,21 +169,21 @@ private enum RoutineIconOption: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .moonStars:
-            return "睡眠准备"
+            return L10n.tr("睡眠准备")
         case .phoneOff:
-            return "放下屏幕"
+            return L10n.tr("放下屏幕")
         case .shower:
-            return "洗漱"
+            return L10n.tr("洗漱")
         case .book:
-            return "阅读"
+            return L10n.tr("阅读")
         case .tea:
-            return "热饮"
+            return L10n.tr("热饮")
         case .lungs:
-            return "呼吸放松"
+            return L10n.tr("呼吸放松")
         case .waveform:
-            return "音景"
+            return L10n.tr("音景")
         case .lightbulb:
-            return "调暗灯光"
+            return L10n.tr("调暗灯光")
         }
     }
 

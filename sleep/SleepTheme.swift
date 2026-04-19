@@ -79,14 +79,14 @@ struct SleepSectionHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(eyebrow.uppercased())
+            Text(L10n.tr(eyebrow).uppercased())
                 .font(.caption.weight(.semibold))
                 .tracking(1.4)
                 .foregroundColor(SleepTheme.accent)
-            Text(title)
+            Text(L10n.tr(title))
                 .font(.title3.weight(.bold))
                 .foregroundColor(SleepTheme.ink)
-            Text(detail)
+            Text(L10n.tr(detail))
                 .font(.subheadline)
                 .foregroundColor(SleepTheme.mutedInk)
         }

@@ -32,15 +32,30 @@ struct SleepHistoryView: View {
                     .padding(.vertical, 24)
                 }
             } else {
-                Section {
-                    HStack {
-                        Stat(label: "平均入睡", value: "\(Int(store.summary.averageLatency)) 分")
-                        Stat(label: "平均睡眠", value: String(format: "%.1f 小时", store.summary.averageSleepHours))
-                        Stat(label: "刷手机", value: "\(Int(store.summary.phoneUseRate * 100))%")
+                if store.summary.detailedEntryCount > 0 {
+                    Section {
+                        HStack {
+                            Stat(label: "平均入睡", value: L10n.format("%d 分", Int(store.summary.averageLatency)))
+                            Stat(label: "平均睡眠", value: L10n.format("%.1f 小时", store.summary.averageSleepHours))
+                            Stat(label: "刷手机", value: "\(Int(store.summary.phoneUseRate * 100))%")
+                        }
+                        .padding(.vertical, 6)
+                    } header: {
+                        Text("最近 7 天")
+                    } footer: {
+                        Text(store.historyTrustLine)
                     }
-                    .padding(.vertical, 6)
-                } header: {
-                    Text("最近 7 天")
+                } else {
+                    Section {
+                        Text("已有晨间快记，补一条详细复盘后这里会开始显示趋势。")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                            .padding(.vertical, 8)
+                    } header: {
+                        Text("最近 7 天")
+                    } footer: {
+                        Text(store.historyTrustLine)
+                    }
                 }
 
                 Section {
@@ -50,17 +65,27 @@ struct SleepHistoryView: View {
                                 Text(Self.dateFormatter.string(from: entry.date))
                                     .font(.headline)
                                 Spacer()
-                                Text(entry.mood.rawValue)
+                                Text(entry.mood.title)
                                     .font(.subheadline)
                                     .foregroundColor(entry.mood.color)
                             }
-                            HStack(spacing: 12) {
-                                Label("\(entry.latencyMinutes) 分钟入睡", systemImage: "clock")
-                                Label("\(entry.wakeCount) 次醒来", systemImage: "zzz")
-                                Label(String(format: "%.1f 小时", entry.sleepDurationHours), systemImage: "bed.double")
+                            if entry.isDetailed {
+                                HStack(spacing: 12) {
+                                    if let latencyMinutes = entry.latencyMinutes {
+                                        Label(L10n.format("%d 分钟入睡", latencyMinutes), systemImage: "clock")
+                                    }
+                                    if let wakeCount = entry.wakeCount {
+                                        Label(L10n.format("%d 次醒来", wakeCount), systemImage: "zzz")
+                                    }
+                                    Label(L10n.format("%.1f 小时", entry.sleepDurationHours), systemImage: "bed.double")
+                                }
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            } else {
+                                Text("晨间快记")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundColor(SleepTheme.accent)
                             }
-                            .font(.caption)
-                            .foregroundColor(.secondary)
                             if !entry.habitTags.isEmpty {
                                 Text(entry.habitTags.joined(separator: " · "))
                                     .font(.caption)
@@ -87,6 +112,8 @@ struct SleepHistoryView: View {
                     }
                 } header: {
                     Text("全部记录")
+                } footer: {
+                    Text("左滑记录可编辑或删除。")
                 }
             }
         }
@@ -119,7 +146,7 @@ struct SleepHistoryView: View {
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
-        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.locale = .autoupdatingCurrent
         return formatter
     }()
 }
@@ -130,10 +157,10 @@ private struct Stat: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label)
+            Text(L10n.tr(label))
                 .font(.caption)
                 .foregroundColor(.secondary)
-            Text(value)
+            Text(L10n.tr(value))
                 .font(.headline)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

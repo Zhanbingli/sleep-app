@@ -10,9 +10,11 @@ struct SoundscapeView: View {
 }
 
 private struct SoundscapeScreen: View {
+    @ObservedObject private var store: SleepStore
     @StateObject private var viewModel: SoundscapeViewModel
 
     init(store: SleepStore, engine: SoundscapeEngine) {
+        _store = ObservedObject(wrappedValue: store)
         _viewModel = StateObject(wrappedValue: SoundscapeViewModel(store: store, engine: engine))
     }
 
@@ -38,12 +40,19 @@ private struct SoundscapeScreen: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(viewModel.isPlaying ? (viewModel.isFadingOut ? "渐弱中" : "播放中") : "未播放")
+            Text(viewModel.isPlaying ? (viewModel.isFadingOut ? L10n.tr("渐弱中") : L10n.tr("播放中")) : L10n.tr("未播放"))
                 .font(.caption.weight(.semibold))
                 .tracking(1.4)
                 .foregroundColor(viewModel.isPlaying ? SleepTheme.accent : SleepTheme.mutedInk)
+            Text(L10n.format("推荐：%@ · %d 分钟渐弱", store.tonightPlan.recommendedSoundKind.displayName, store.tonightPlan.fadeMinutes))
+                .font(.footnote)
+                .foregroundColor(SleepTheme.ink.opacity(0.82))
             Text(viewModel.statusText)
                 .font(.subheadline)
+                .foregroundColor(SleepTheme.mutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(store.tonightPlan.insight)
+                .font(.footnote)
                 .foregroundColor(SleepTheme.mutedInk)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -68,19 +77,22 @@ private struct SoundscapeScreen: View {
                     .font(.subheadline.weight(.medium))
                     .foregroundColor(SleepTheme.ink)
                 Spacer()
-                Text("\(Int(viewModel.fadeMinutes)) 分钟")
+                Text(L10n.format("%d 分钟", Int(viewModel.fadeMinutes)))
                     .font(.subheadline)
                     .foregroundColor(SleepTheme.mutedInk)
             }
             Slider(
                 value: Binding(
                     get: { viewModel.fadeMinutes },
-                    set: { viewModel.fadeMinutes = $0 }
+                    set: { viewModel.setFadeMinutes($0) }
                 ),
                 in: 10...60,
                 step: 5
             )
             .tint(SleepTheme.accent)
+            Text("会记住你的默认渐弱时长。")
+                .font(.caption)
+                .foregroundColor(SleepTheme.mutedInk)
         }
         .padding(18)
         .background(SleepTheme.card)
@@ -96,7 +108,7 @@ private struct SoundscapeScreen: View {
             Button {
                 viewModel.togglePlayback()
             } label: {
-                Text(viewModel.isPlaying ? "停止" : "开始")
+                Text(viewModel.isPlaying ? L10n.tr("停止") : L10n.tr("开始"))
                     .font(.headline.weight(.semibold))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
@@ -109,7 +121,7 @@ private struct SoundscapeScreen: View {
             Button {
                 viewModel.startFadeOut()
             } label: {
-                Text("开始渐弱")
+                Text(L10n.tr("开始渐弱"))
                     .font(.subheadline.weight(.medium))
                     .foregroundColor(viewModel.isPlaying ? SleepTheme.ink : SleepTheme.mutedInk.opacity(0.5))
                     .frame(maxWidth: .infinity)
@@ -139,7 +151,7 @@ private struct TrackRow: View {
                     .font(.subheadline)
                     .foregroundColor(track.isEnabled ? SleepTheme.accent : SleepTheme.mutedInk)
                     .frame(width: 24)
-                Text(track.title)
+                Text(track.kind.displayName)
                     .font(.subheadline.weight(.medium))
                     .foregroundColor(SleepTheme.ink)
                 Spacer()
@@ -161,6 +173,11 @@ private struct TrackRow: View {
                 )
                 .tint(SleepTheme.accent)
             }
+
+            Text(track.kind.trackDescription)
+                .font(.caption)
+                .foregroundColor(SleepTheme.mutedInk)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
         .background(SleepTheme.card)
