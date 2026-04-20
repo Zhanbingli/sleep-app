@@ -11,7 +11,7 @@ struct TonightFlowView: View {
     @State private var phase: Phase = .commitment
 
     private enum Phase {
-        case commitment, breathing, audio, phoneDown
+        case commitment, priming, breathing, audio, phoneDown
     }
 
     private var plan: TonightPlan {
@@ -24,7 +24,10 @@ struct TonightFlowView: View {
 
             switch phase {
             case .commitment:
-                CommitmentScreen(plan: plan, onStart: advanceToBreathing)
+                CommitmentScreen(plan: plan, onStart: advanceToPriming)
+            case .priming:
+                PrimingBreathScreen(onComplete: advanceToBreathing)
+                    .transition(.opacity)
             case .breathing:
                 TunnelBreathingScreen(
                     preset: plan.recommendedBreathing,
@@ -60,8 +63,12 @@ struct TonightFlowView: View {
         }
     }
 
+    private func advanceToPriming() {
+        withAnimation(.easeInOut(duration: 0.9)) { phase = .priming }
+    }
+
     private func advanceToBreathing() {
-        withAnimation(.easeInOut(duration: 0.6)) { phase = .breathing }
+        withAnimation(.easeInOut(duration: 0.8)) { phase = .breathing }
     }
 
     private func advanceToAudio() {
@@ -89,6 +96,8 @@ struct TonightFlowView: View {
 private struct CommitmentScreen: View {
     let plan: TonightPlan
     let onStart: () -> Void
+
+    @State private var invitePulse = false
 
     var body: some View {
         VStack(spacing: 28) {
@@ -121,10 +130,21 @@ private struct CommitmentScreen: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 18)
-                    .background(SleepTheme.indigo)
+                    .background(
+                        ZStack {
+                            SleepTheme.indigo
+                            Color.white.opacity(invitePulse ? 0.06 : 0.0)
+                        }
+                    )
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .scaleEffect(invitePulse ? 1.015 : 1.0)
             }
             .buttonStyle(.plain)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                    invitePulse = true
+                }
+            }
         }
         .padding(.horizontal, 28)
         .padding(.bottom, 40)
@@ -146,6 +166,70 @@ private struct CommitmentStep: View {
                     .stroke(SleepTheme.line, lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+// MARK: - Priming breath (commitment → breathing bridge)
+
+private struct PrimingBreathScreen: View {
+    let onComplete: () -> Void
+
+    @State private var scale: CGFloat = 0.82
+    @State private var glow: Double = 0.35
+    @State private var caption: String = "先跟着吸一口气"
+
+    var body: some View {
+        VStack(spacing: 28) {
+            Spacer()
+
+            ZStack {
+                Circle()
+                    .stroke(SleepTheme.indigo.opacity(0.18), lineWidth: 1)
+                    .frame(width: 260, height: 260)
+
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                Color.white.opacity(0.18),
+                                SleepTheme.indigo.opacity(glow)
+                            ],
+                            center: .center,
+                            startRadius: 4,
+                            endRadius: 170
+                        )
+                    )
+                    .frame(width: 220, height: 220)
+                    .scaleEffect(scale)
+            }
+
+            Text(L10n.tr(caption))
+                .font(.subheadline)
+                .foregroundColor(SleepTheme.mutedInk)
+                .tracking(1)
+
+            Spacer()
+        }
+        .padding(.bottom, 40)
+        .task {
+            withAnimation(.easeInOut(duration: 1.8)) {
+                scale = 1.22
+                glow = 0.55
+            }
+            try? await Task.sleep(nanoseconds: 1_800_000_000)
+
+            UISelectionFeedbackGenerator().selectionChanged()
+            withAnimation(.easeInOut(duration: 0.25)) {
+                caption = "再慢慢呼出去"
+            }
+            withAnimation(.easeInOut(duration: 2.0)) {
+                scale = 0.88
+                glow = 0.30
+            }
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+
+            onComplete()
+        }
     }
 }
 
@@ -178,11 +262,12 @@ private struct TunnelBreathingScreen: View {
 
     var body: some View {
         VStack {
-            Text(currentPhase.title)
+            Text(isPaused ? L10n.tr("已暂停") : currentPhase.title)
                 .font(.subheadline.weight(.medium))
                 .tracking(2)
-                .foregroundColor(SleepTheme.mutedInk)
+                .foregroundColor(SleepTheme.mutedInk.opacity(isPaused ? 0.7 : 1))
                 .padding(.top, 24)
+                .animation(.easeInOut(duration: 0.25), value: isPaused)
 
             Spacer()
 
@@ -204,6 +289,8 @@ private struct TunnelBreathingScreen: View {
                     .font(.system(size: 56, weight: .light, design: .rounded))
                     .foregroundColor(SleepTheme.ink)
             }
+            .opacity(isPaused ? 0.45 : 1)
+            .animation(.easeInOut(duration: 0.3), value: isPaused)
 
             Spacer()
 
@@ -224,7 +311,10 @@ private struct TunnelBreathingScreen: View {
                     }
                     .padding(.horizontal, 36)
 
-                    Button { isPaused.toggle() } label: {
+                    Button {
+                        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+                        isPaused.toggle()
+                    } label: {
                         Image(systemName: isPaused ? "play.fill" : "pause.fill")
                             .font(.title3)
                             .foregroundColor(SleepTheme.ink)
@@ -282,6 +372,15 @@ private struct AudioDescentScreen: View {
     let onPhoneDown: () -> Void
 
     @State private var pulse: CGFloat = 1.0
+    @State private var endDate: Date = Date()
+    @State private var now: Date = Date()
+
+    private let ticker = Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()
+
+    private var remainingText: String {
+        let remaining = max(0, Int(endDate.timeIntervalSince(now).rounded()))
+        return String(format: "%02d:%02d", remaining / 60, remaining % 60)
+    }
 
     var body: some View {
         VStack {
@@ -310,13 +409,17 @@ private struct AudioDescentScreen: View {
                     .scaleEffect(pulse)
                     .animation(.easeInOut(duration: 4).repeatForever(autoreverses: true), value: pulse)
             }
-            .onAppear { pulse = 1.08 }
+            .onAppear {
+                pulse = 1.08
+                endDate = Date().addingTimeInterval(TimeInterval(plan.fadeMinutes * 60))
+            }
+            .onReceive(ticker) { now = $0 }
 
             Spacer()
 
             VStack(spacing: 14) {
-                Text(L10n.format("%d 分钟内自动停止", plan.fadeMinutes))
-                    .font(.footnote)
+                Text(L10n.format("%@ 后自动停止", remainingText))
+                    .font(.footnote.monospacedDigit())
                     .foregroundColor(SleepTheme.mutedInk)
 
                 Button(action: onPhoneDown) {
