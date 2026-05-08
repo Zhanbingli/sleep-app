@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Charts
 
 struct SleepHistoryView: View {
     @EnvironmentObject var store: SleepStore
@@ -40,6 +41,10 @@ struct SleepHistoryView: View {
                             Stat(label: "刷手机", value: "\(Int(store.summary.phoneUseRate * 100))%")
                         }
                         .padding(.vertical, 6)
+                        if store.summary.detailedEntryCount >= 2 {
+                            LatencyTrendChart(entries: detailedTrendEntries)
+                                .padding(.top, 4)
+                        }
                     } header: {
                         Text("最近 7 天")
                     } footer: {
@@ -149,6 +154,58 @@ struct SleepHistoryView: View {
         formatter.locale = .autoupdatingCurrent
         return formatter
     }()
+
+    private var detailedTrendEntries: [SleepEntry] {
+        Array(store.sortedEntries.filter(\.isDetailed).prefix(7)).reversed()
+    }
+}
+
+private struct LatencyTrendChart: View {
+    let entries: [SleepEntry]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L10n.tr("入睡分钟数趋势"))
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Chart {
+                ForEach(entries) { entry in
+                    if let minutes = entry.latencyMinutes {
+                        LineMark(
+                            x: .value("Date", entry.date),
+                            y: .value("Latency", minutes)
+                        )
+                        .foregroundStyle(SleepTheme.accent)
+                        .interpolationMethod(.catmullRom)
+                        PointMark(
+                            x: .value("Date", entry.date),
+                            y: .value("Latency", minutes)
+                        )
+                        .foregroundStyle(SleepTheme.accent)
+                    }
+                }
+            }
+            .chartYScale(domain: 0...90)
+            .chartYAxis {
+                AxisMarks(values: [0, 30, 60, 90]) { value in
+                    AxisGridLine().foregroundStyle(SleepTheme.line)
+                    AxisValueLabel {
+                        if let minutes = value.as(Int.self) {
+                            Text("\(minutes)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .day)) { _ in
+                    AxisGridLine().foregroundStyle(SleepTheme.line)
+                }
+            }
+            .frame(height: 90)
+        }
+    }
 }
 
 private struct Stat: View {

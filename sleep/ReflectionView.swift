@@ -270,12 +270,39 @@ struct ReflectionDetailView: View {
         _settleFeedback = State(initialValue: existingEntry?.settleFeedback ?? .somewhat)
     }
 
+    @State private var healthImportMessage: String?
+    @State private var isImportingFromHealth = false
+
     var body: some View {
         Form {
             Section {
                 Text("详细复盘会进入趋势统计，并直接影响今晚推荐。")
                     .font(.footnote)
                     .foregroundColor(.secondary)
+            }
+
+            if SleepHealthKit.shared.isAvailable {
+                Section {
+                    Button {
+                        Task { await importFromHealth() }
+                    } label: {
+                        HStack {
+                            if isImportingFromHealth {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "heart.text.square")
+                            }
+                            Text("从健康 App 导入昨晚")
+                        }
+                    }
+                    .disabled(isImportingFromHealth)
+
+                    if let healthImportMessage {
+                        Text(healthImportMessage)
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
 
             Section("昨夜节律") {
@@ -346,6 +373,26 @@ struct ReflectionDetailView: View {
         .navigationTitle(L10n.tr(isEditing ? "编辑复盘" : "详细复盘"))
         .scrollContentBackground(.hidden)
         .background(SleepBackdrop())
+    }
+
+    private func importFromHealth() async {
+        isImportingFromHealth = true
+        defer { isImportingFromHealth = false }
+        do {
+            try await SleepHealthKit.shared.requestAuthorization()
+            let night = try await SleepHealthKit.shared.importLastNight()
+            bedtime = night.bedtime
+            wakeTime = night.wakeTime
+            if night.wakeTime > Date().addingTimeInterval(-86_400) {
+                date = night.wakeTime
+            }
+            wakeCount = night.wakeCount
+            healthImportMessage = L10n.tr("已从健康 App 导入")
+        } catch let error as HealthKitImportError {
+            healthImportMessage = error.errorDescription
+        } catch {
+            healthImportMessage = error.localizedDescription
+        }
     }
 
     private func saveEntry() {

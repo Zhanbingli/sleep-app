@@ -28,6 +28,9 @@ struct OnboardingView: View {
                     soundSection
                     durationSection
                     finishButton
+                    if !isEditingProfile {
+                        skipForNowButton
+                    }
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 32)
@@ -116,6 +119,19 @@ struct OnboardingView: View {
         }
         .buttonStyle(.plain)
         .padding(.top, 8)
+    }
+
+    private var skipForNowButton: some View {
+        Button {
+            store.completeOnboarding(with: SleepProfile.minimalDefault)
+        } label: {
+            Text("先用默认设置开始")
+                .font(.footnote)
+                .foregroundColor(SleepTheme.mutedInk)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+        }
+        .buttonStyle(.plain)
     }
 }
 

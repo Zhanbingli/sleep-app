@@ -444,6 +444,8 @@ private struct AudioDescentScreen: View {
 private struct PhoneDownScreen: View {
     let onEnd: () -> Void
 
+    @Environment(\.openURL) private var openURL
+
     var body: some View {
         VStack(spacing: 22) {
             Spacer()
@@ -456,6 +458,32 @@ private struct PhoneDownScreen: View {
             Text("音景会继续。闭眼。")
                 .font(.subheadline)
                 .foregroundColor(SleepTheme.mutedInk)
+
+            Button {
+                if let url = URL(string: "App-prefs:com.apple.donotdisturb.DoNotDisturbSettings") {
+                    openURL(url)
+                }
+            } label: {
+                VStack(spacing: 4) {
+                    Text("打开睡眠专注模式")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(SleepTheme.ink)
+                    Text("打开后，今晚的通知和图标会暗下来。")
+                        .font(.caption)
+                        .foregroundColor(SleepTheme.mutedInk)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(SleepTheme.card)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(SleepTheme.accent.opacity(0.35), lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 28)
+
             Spacer()
             Button(action: onEnd) {
                 Text("结束")

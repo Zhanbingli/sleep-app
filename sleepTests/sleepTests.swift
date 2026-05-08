@@ -238,4 +238,64 @@ struct sleepTests {
         let withFive = makeStore(entries: entries)
         #expect(withFive.planConfidenceLine.contains("5"))
     }
+
+    // MARK: - Adaptive: yesterday's "no" settle bumps to 4-7-8
+
+    @Test func yesterdayNegativeSettleBumpsToFourSevenEight() {
+        let profile = SleepProfile(
+            primaryChallenge: .lightSleep, // would normally pick coherent
+            preferredSound: .pinkNoise,
+            preferredWindDownMinutes: 10
+        )
+        let yesterday = SleepEntry(
+            kind: .quickCheck,
+            date: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date(),
+            mood: .okay,
+            settleFeedback: .no
+        )
+        let store = makeStore(profile: profile, entries: [yesterday])
+        let plan = store.tonightPlan(for: nil)
+        #expect(plan.recommendedBreathing == .fourSevenEight)
+    }
+
+    // MARK: - Adaptive: stale negative feedback (week-old) does NOT trigger bump
+
+    @Test func staleNegativeSettleDoesNotBump() {
+        let profile = SleepProfile(
+            primaryChallenge: .lightSleep,
+            preferredSound: .pinkNoise,
+            preferredWindDownMinutes: 10
+        )
+        let weekAgo = SleepEntry(
+            kind: .quickCheck,
+            date: Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date(),
+            mood: .okay,
+            settleFeedback: .no
+        )
+        let store = makeStore(profile: profile, entries: [weekAgo])
+        let plan = store.tonightPlan(for: nil)
+        // .lightSleep default is coherent and should not be overridden by a 7-day-old "no"
+        #expect(plan.recommendedBreathing == .coherent)
+    }
+
+    // MARK: - Profile minimal default
+
+    @Test func minimalDefaultProfileHasSafeFallbacks() {
+        let profile = SleepProfile.minimalDefault
+        #expect(profile.preferredWindDownMinutes >= 5)
+        #expect(profile.preferredWindDownMinutes <= 30)
+    }
+
+    // MARK: - Entry storage round-trip
+
+    @Test func entryStorageRoundTripsViaFile() {
+        SleepEntryStorage.clearForTesting()
+        defer { SleepEntryStorage.clearForTesting() }
+
+        let entries = [detailedEntry(daysAgo: 1, latencyMinutes: 22)]
+        SleepEntryStorage.save(entries)
+        let loaded = SleepEntryStorage.load() ?? []
+        #expect(loaded.count == 1)
+        #expect(loaded.first?.latencyMinutes == 22)
+    }
 }

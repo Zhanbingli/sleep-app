@@ -379,3 +379,13 @@
 "趋势只统计详细复盘；晨间快记会保留在列表里，但不会拉偏平均值。" = "Trends only use detailed reviews; quick morning checks stay in the list but won't distort the averages.";
 "趋势只统计详细复盘；现在的晨间快记不会被拿来伪造平均值。" = "Trends only use detailed reviews; quick morning checks are not used to fake averages.";
 "左滑记录可编辑或删除。" = "Swipe left on a record to edit or delete it.";
+"先用默认设置开始" = "Start with sensible defaults";
+"入睡分钟数趋势" = "Sleep latency trend (min)";
+"昨晚反馈是没更快安静，今晚先把呼吸压得更慢一点" = "Last night's feedback said it didn't help; tonight, slow the breathing down further";
+"从健康 App 导入昨晚" = "Import last night from Health";
+"已从健康 App 导入" = "Imported from Health";
+"健康 App 没有昨晚的数据" = "No data for last night in Health";
+"未授权访问健康数据" = "Health access not granted";
+"打开睡眠专注模式" = "Open Sleep Focus";
+"打开后，今晚的通知和图标会暗下来。" = "Once on, tonight's notifications and icons will dim.";
+"打开设置" = "Open Settings";

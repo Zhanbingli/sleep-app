@@ -579,6 +579,12 @@ struct SleepProfile: Codable, Equatable {
     var primaryChallenge: SleepChallenge
     var preferredSound: SoundKind
     var preferredWindDownMinutes: Int
+
+    static let minimalDefault = SleepProfile(
+        primaryChallenge: .mindRacing,
+        preferredSound: .rain,
+        preferredWindDownMinutes: 10
+    )
 }
 
 struct SleepSummary {

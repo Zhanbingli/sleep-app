@@ -10,7 +10,7 @@ import Foundation
 @MainActor
 final class SleepStore: ObservableObject {
     @Published var entries: [SleepEntry] = [] {
-        didSet { persist(entries, forKey: entriesKey) }
+        didSet { persistEntries(entries) }
     }
     @Published var routineSteps: [RoutineStep] = [] {
         didSet { persist(routineSteps, forKey: routineKey) }
@@ -25,7 +25,6 @@ final class SleepStore: ObservableObject {
         didSet { persist(profile, forKey: profileKey) }
     }
 
-    private let entriesKey = "sleep.entries"
     private let routineKey = "sleep.routine"
     private let soundscapeKey = "sleep.soundscape"
     private let soundscapeFadeKey = "sleep.soundscape.fadeMinutes"
@@ -33,7 +32,7 @@ final class SleepStore: ObservableObject {
     private let persistenceQueue = DispatchQueue(label: "sleep.store.persistence", qos: .utility)
 
     init() {
-        entries = Self.load([SleepEntry].self, forKey: entriesKey) ?? SleepStore.sampleEntries
+        entries = SleepEntryStorage.load() ?? SleepStore.sampleEntries
         routineSteps = Self.load([RoutineStep].self, forKey: routineKey) ?? SleepStore.sampleRoutine
         soundscapeTracks = Self.load([SoundscapeTrack].self, forKey: soundscapeKey) ?? SleepStore.sampleSoundscape
         soundscapeFadeMinutes = Self.load(Double.self, forKey: soundscapeFadeKey) ?? 30
@@ -299,6 +298,14 @@ final class SleepStore: ObservableObject {
             reasons.append(L10n.tr("最近主观反馈显示，当前流程还没有足够快地帮你安静下来"))
         }
 
+        if let last = summary.lastEntry,
+           last.settleFeedback == .no,
+           Calendar.current.isDateInYesterday(last.date) || Calendar.current.isDateInToday(last.date) {
+            recommendedBreathing = .fourSevenEight
+            fadeMinutes = min(fadeMinutes + 5, 50)
+            reasons.append(L10n.tr("昨晚反馈是没更快安静，今晚先把呼吸压得更慢一点"))
+        }
+
         let detail = reasons.joined(separator: L10n.tr("，")) + L10n.tr("。")
         let insight = reasons.last ?? reasons.first ?? L10n.tr("今晚先按推荐流程走一遍。")
 
@@ -435,6 +442,12 @@ private extension SleepStore {
                 return
             }
             UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+
+    func persistEntries(_ entries: [SleepEntry]) {
+        persistenceQueue.async {
+            SleepEntryStorage.save(entries)
         }
     }
 
